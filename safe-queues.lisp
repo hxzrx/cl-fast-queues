@@ -54,8 +54,7 @@
   (with-slots (pop-queue) queue
     (cl-speedy-queue:queue-peek pop-queue)))
 
-(defmethod dequeue ((queue safe-fast-fifo) &optional (keep-in-queue t) waitp)
-  (declare (ignore keep-in-queue))
+(defmethod dequeue ((queue safe-fast-fifo) &optional (keep-in-queue-p t) waitp)
   (if waitp
       (with-slots (pop-queue queue-list lock cvar) queue
         (bt:with-lock-held (lock)
@@ -63,15 +62,15 @@
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation. but it doesn't work on CCL.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      (progn (bt:condition-wait cvar lock)
-                            (cl-speedy-queue:dequeue pop-queue))
-                     (cl-speedy-queue:dequeue pop-queue))
+                            (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
+                     (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (cdr queue-list)
                     pop-queue (car queue-list))))))
       (with-slots (pop-queue queue-list lock) queue
         (bt:with-lock-held (lock)
-          (prog1 (cl-speedy-queue:dequeue pop-queue)
+          (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (cdr queue-list)
@@ -143,7 +142,7 @@
   (with-slots (push-queue) queue
     (cl-speedy-lifo:queue-peek push-queue)))
 
-(defmethod dequeue ((queue safe-fast-lifo) &optional (keep-in-queue t) waitp)
+(defmethod dequeue ((queue safe-fast-lifo) &optional (keep-in-queue-p t) waitp)
   (if waitp
       (with-slots (push-queue queue-list lock cvar) queue
         (bt:with-lock-held (lock)
@@ -151,15 +150,15 @@
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation. but it doesn't work on CCL.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      (progn (bt:condition-wait cvar lock)
-                            (cl-speedy-lifo:dequeue push-queue keep-in-queue))
-                     (cl-speedy-lifo:dequeue push-queue keep-in-queue)))
+                            (cl-speedy-lifo:dequeue push-queue keep-in-queue-p))
+                     (cl-speedy-lifo:dequeue push-queue keep-in-queue-p)))
           (when (and (cl-speedy-lifo:queue-empty-p push-queue)
                      (null (%singularp queue-list)))
             (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
                   push-queue (car (last queue-list))))))
       (with-slots (push-queue queue-list lock) queue
         (bt:with-lock-held (lock)
-          (prog1 (cl-speedy-lifo:dequeue push-queue keep-in-queue)
+          (prog1 (cl-speedy-lifo:dequeue push-queue keep-in-queue-p)
             (when (and (cl-speedy-lifo:queue-empty-p push-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
