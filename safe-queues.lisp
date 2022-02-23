@@ -45,10 +45,8 @@
     (bt:with-lock-held (lock)
       (if (< (the fixnum (cl-speedy-queue:queue-count push-queue))
              (* enlarge-threshold push-queue-len))
-          (if (cl-speedy-queue:queue-empty-p push-queue)
-              (prog1 (cl-speedy-queue:enqueue object push-queue)
-                (bt:condition-notify cvar))
-              (cl-speedy-queue:enqueue object push-queue))
+          (prog1 (cl-speedy-queue:enqueue object push-queue)
+            (bt:condition-notify cvar))
           (progn
             (when ;;(%singularp queue-list) ; enlarging by add a new queue in the end of queue-list
                 (eq push-queue (car (last queue-list)))
@@ -59,8 +57,10 @@
             (if (cl-speedy-queue:queue-full-p push-queue) ; check to switch to the last element of queue-list
                 (progn (setf push-queue (car (last queue-list))
                              push-queue-len (cl-speedy-queue:queue-length push-queue))
-                       (cl-speedy-queue:enqueue object push-queue))
-                (cl-speedy-queue:enqueue object push-queue)))))))
+                       (prog1 (cl-speedy-queue:enqueue object push-queue)
+                         (bt:condition-notify cvar)))
+                (prog1 (cl-speedy-queue:enqueue object push-queue)
+                  (bt:condition-notify cvar))))))))
 
 (defmethod queue-peek ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -136,10 +136,8 @@
     (bt:with-lock-held (lock)
       (if (< (the fixnum (cl-speedy-lifo:queue-count push-queue))
              (* enlarge-threshold push-queue-len))
-          (if (cl-speedy-lifo:queue-empty-p push-queue)
-              (prog1 (cl-speedy-lifo:enqueue object push-queue)
-                (bt:condition-notify cvar))
-              (cl-speedy-lifo:enqueue object push-queue))
+          (prog1 (cl-speedy-lifo:enqueue object push-queue)
+            (bt:condition-notify cvar))
           (progn
             (when ;;(%singularp queue-list) ; enlarging by add a new queue in the end of queue-list
                 (eq push-queue (car (last queue-list)))
@@ -149,8 +147,11 @@
             (if (cl-speedy-lifo:queue-full-p push-queue) ; check to switch to the last element of queue-list
                 (progn (setf push-queue (car (last queue-list))
                              push-queue-len (cl-speedy-lifo:queue-length push-queue))
-                       (cl-speedy-lifo:enqueue object push-queue))
-                (cl-speedy-lifo:enqueue object push-queue)))))))
+                       (prog1 (cl-speedy-lifo:enqueue object push-queue)
+                         (bt:condition-notify cvar)))
+                (prog1 (cl-speedy-lifo:enqueue object push-queue)
+                  (bt:condition-notify cvar)
+                  )))))))
 
 (defmethod queue-peek ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
