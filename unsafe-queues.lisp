@@ -64,10 +64,10 @@ but it's enough in this lib since the car of lst will never be nil."
   (with-slots (pop-queue) queue
     (cl-speedy-queue:queue-peek pop-queue)))
 
-(defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue t) waitp)
-  (declare (ignore keep-in-queue waitp))
+(defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t) waitp)
+  (declare (ignore waitp))
   (with-slots (pop-queue queue-list) queue
-    (prog1 (cl-speedy-queue:dequeue pop-queue)
+    (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
       (when (and (cl-speedy-queue:queue-empty-p pop-queue)
                  (null (%singularp queue-list)))
         (setf queue-list (cdr queue-list)
@@ -127,10 +127,10 @@ but it's enough in this lib since the car of lst will never be nil."
   (with-slots (push-queue) queue
     (cl-speedy-lifo:queue-peek push-queue)))
 
-(defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue t) waitp)
+(defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t) waitp)
   (declare (ignore waitp))
   (with-slots (push-queue queue-list) queue
-    (prog1 (cl-speedy-lifo:dequeue push-queue keep-in-queue)
+    (prog1 (cl-speedy-lifo:dequeue push-queue keep-in-queue-p)
       (when (and (cl-speedy-lifo:queue-empty-p push-queue)
                  (null (%singularp queue-list)))
         (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
