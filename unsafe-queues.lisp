@@ -64,7 +64,7 @@ but it's enough in this lib since the car of lst will never be nil."
   (with-slots (pop-queue) queue
     (cl-speedy-queue:queue-peek pop-queue)))
 
-(defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t) waitp)
+(defmethod dequeue ((queue unsafe-fast-fifo) &key (keep-in-queue-p t) waitp)
   (declare (ignore waitp))
   (with-slots (pop-queue queue-list) queue
     (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
@@ -127,7 +127,7 @@ but it's enough in this lib since the car of lst will never be nil."
   (with-slots (push-queue) queue
     (cl-speedy-lifo:queue-peek push-queue)))
 
-(defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t) waitp)
+(defmethod dequeue ((queue unsafe-fast-lifo) &key (keep-in-queue-p t) waitp)
   (declare (ignore waitp))
   (with-slots (push-queue queue-list) queue
     (prog1 (cl-speedy-lifo:dequeue push-queue keep-in-queue-p)

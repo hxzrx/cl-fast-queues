@@ -458,7 +458,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t nil)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp nil)))))))
       (true (queue-empty-p queue)))))
 
 (define-test safe-fifo-dequeue-threads-wait :parent safe-fifo
@@ -474,7 +474,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t t)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t)))))))
       (true (queue-empty-p queue)))))
 
 
@@ -509,7 +509,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t nil)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp nil)))))))
       (true (queue-empty-p queue)))))
 
 (define-test safe-lifo-dequeue-threads-wait :parent safe-lifo
@@ -525,5 +525,5 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t t)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t)))))))
       (true (queue-empty-p queue)))))

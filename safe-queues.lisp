@@ -54,7 +54,7 @@
   (with-slots (pop-queue) queue
     (cl-speedy-queue:queue-peek pop-queue)))
 
-(defmethod dequeue ((queue safe-fast-fifo) &optional (keep-in-queue-p t) waitp)
+(defmethod dequeue ((queue safe-fast-fifo) &key (keep-in-queue-p t) (waitp nil))
   (if waitp
       (with-slots (pop-queue queue-list lock cvar) queue
         (bt:with-lock-held (lock)
@@ -142,7 +142,7 @@
   (with-slots (push-queue) queue
     (cl-speedy-lifo:queue-peek push-queue)))
 
-(defmethod dequeue ((queue safe-fast-lifo) &optional (keep-in-queue-p t) waitp)
+(defmethod dequeue ((queue safe-fast-lifo) &key (keep-in-queue-p t) (waitp nil))
   (if waitp
       (with-slots (push-queue queue-list lock cvar) queue
         (bt:with-lock-held (lock)
