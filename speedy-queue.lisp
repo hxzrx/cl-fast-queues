@@ -68,7 +68,7 @@
   (when (typep length 'fixnum)
     (locally (declare (fixnum length))
       (when (plusp length)
-        (let ((queue (make-array (the fixnum (+ 2 length)))))
+        (let ((queue (make-array (the fixnum (+ 2 length)) :initial-element nil)))
           (setf (svref queue 1) 2
                 (svref queue 0) 2
                 (svref queue 2) '#.queue-sentinel)
@@ -155,14 +155,16 @@
       *overflow-flag*
       ))
 
-(define-speedy-function %dequeue (queue &aux (out (%queue-out queue)))
+(define-speedy-function %dequeue (queue keep-in-queue-p &aux (out (%queue-out queue)))
   (declare (fixnum out))
+  (declare (boolean keep-in-queue-p))
   "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
   (let ((out-object (svref queue out)))
     (if (eq out-object '#.queue-sentinel)
         ;;(error 'queue-underflow-error :queue queue)
         *underflow-flag*
         (prog1 out-object
+          (unless keep-in-queue-p (setf (svref queue out) nil))
           (setf (svref queue 0)
                 (if (= (the fixnum (incf out)) (the fixnum (length queue))) (setf out 2) out))
           (when (= (the fixnum (%queue-in queue)) out)
@@ -172,18 +174,23 @@
 
 (defun make-queue (size)
   "Makes a queue of maximum size SIZE"
+  (declare (fixnum size))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%make-queue size))
 
 (defun queue-count (queue)
   "Returns the current size of QUEUE"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%queue-count queue))
 
 (defun queue-length (queue)
   "Returns the maximum size of QUEUE"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%queue-length queue))
 
 (defun queue-peek (queue)
   "Returns the next item that would be dequeued without dequeueing it."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (let ((peek (%queue-peek queue)))
     (if (eq peek '#.queue-sentinel)
         (values nil nil)
@@ -191,16 +198,22 @@
 
 (defun queue-full-p (queue)
   "Returns NIL if more items can be enqueued."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%queue-full-p queue))
 
 (defun queue-empty-p (queue)
   "Tests whether QUEUE is empty"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%queue-empty-p queue))
 
 (defun enqueue (object queue)
   "Enqueues OBJECT in QUEUE"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%enqueue object queue))
 
-(defun dequeue (queue)
-  "Dequeues QUEUE"
-  (%dequeue queue))
+(defun dequeue (queue &optional (keep-in-queue-p t))
+  "Dequeues QUEUE.
+When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref in the queue,
+this is useful when the queue holds very big objects."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (%dequeue queue keep-in-queue-p))
