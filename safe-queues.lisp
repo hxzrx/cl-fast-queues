@@ -169,11 +169,11 @@
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      (progn (bt:condition-wait cvar lock)
                             (cl-speedy-lifo:dequeue push-queue keep-in-queue-p))
-                     (cl-speedy-lifo:dequeue push-queue keep-in-queue-p)))
-          (when (and (cl-speedy-lifo:queue-empty-p push-queue)
-                     (null (%singularp queue-list)))
-            (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
-                  push-queue (car (last queue-list))))))
+                     (cl-speedy-lifo:dequeue push-queue keep-in-queue-p))
+            (when (and (cl-speedy-lifo:queue-empty-p push-queue)
+                       (null (%singularp queue-list)))
+              (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
+                    push-queue (car (last queue-list)))))))
       (with-slots (push-queue queue-list lock) queue
         (declare (list queue-list))
         (bt:with-lock-held (lock)
