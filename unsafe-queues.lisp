@@ -142,7 +142,7 @@ but it's enough in this lib since the car of lst will never be nil."
 
 (defmethod queue-peek ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (-queue) queue
+  (with-slots (cur-queue) queue
     (cl-speedy-lifo:queue-peek cur-queue)))
 
 (defmethod dequeue ((queue unsafe-fast-lifo) &key (keep-in-queue-p t) waitp)
