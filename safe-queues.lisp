@@ -6,8 +6,8 @@
   (push-queue nil :type simple-vector)
   (pop-queue  nil :type simple-vector)
   (queue-list nil :type list)
-  (lock (bt2:make-lock :name "SAFE-FIFO-LOCK"))
-  (cvar (bt2:make-condition-variable :name "SAFE-FIFO-CVAR"))
+  (lock (bt:make-lock "SAFE-FIFO-LOCK"))
+  (cvar (bt:make-condition-variable :name "SAFE-FIFO-CVAR"))
   (push-queue-len 1000 :type fixnum) ; length of push-queue
   (enlarge-size 1.5 :type single-float)
   (enlarge-threshold 1.0 :type single-float))
@@ -42,11 +42,11 @@
   (with-slots (push-queue queue-list enlarge-size enlarge-threshold push-queue-len lock cvar) queue
     (declare (single-float enlarge-size enlarge-threshold))
     (declare (fixnum push-queue-len))
-    (bt2:with-lock-held (lock)
+    (bt:with-lock-held (lock)
       (if (< (the fixnum (cl-speedy-queue:queue-count push-queue))
              (* enlarge-threshold push-queue-len))
           (prog1 (cl-speedy-queue:enqueue object push-queue)
-            (bt2:condition-notify cvar))
+            (bt:condition-notify cvar))
           (progn
             (when ;;(%singularp queue-list) ; enlarging by add a new queue in the end of queue-list
                 (eq push-queue (car (last queue-list)))
@@ -58,9 +58,9 @@
                 (progn (setf push-queue (car (last queue-list))
                              push-queue-len (cl-speedy-queue:queue-length push-queue))
                        (prog1 (cl-speedy-queue:enqueue object push-queue)
-                         (bt2:condition-notify cvar)))
+                         (bt:condition-notify cvar)))
                 (prog1 (cl-speedy-queue:enqueue object push-queue)
-                  (bt2:condition-notify cvar))))))))
+                  (bt:condition-notify cvar))))))))
 
 (defmethod queue-peek ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -71,13 +71,13 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (if waitp
       (with-slots (pop-queue queue-list lock cvar) queue
-        (bt2:with-lock-held (lock)
+        (bt:with-lock-held (lock)
           (prog1 (if (queue-empty-p queue)
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (queue-empty-p queue)
-                                  do (bt2:condition-wait cvar lock))
+                                  do (bt:condition-wait cvar lock))
                             (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
                      (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
@@ -85,7 +85,7 @@
               (setf queue-list (cdr queue-list)
                     pop-queue (car queue-list))))))
       (with-slots (pop-queue queue-list lock) queue
-        (bt2:with-lock-held (lock)
+        (bt:with-lock-held (lock)
           (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
                        (null (%singularp queue-list)))
@@ -98,8 +98,8 @@
 (defstruct (safe-fast-lifo (:conc-name safe-lifo-))
   (cur-queue nil :type simple-vector)
   (queue-list nil :type list)
-  (lock (bt2:make-lock :name "SAFE-LIFO-LOCK"))
-  (cvar (bt2:make-condition-variable :name "SAFE-LIFO-CVAR"))
+  (lock (bt:make-lock "SAFE-LIFO-LOCK"))
+  (cvar (bt:make-condition-variable :name "SAFE-LIFO-CVAR"))
   (cur-queue-len 1000 :type fixnum) ; length of cur-queue
   (enlarge-size 1.5 :type single-float)
   (enlarge-threshold 1.0 :type single-float))
@@ -136,11 +136,11 @@
   (with-slots (cur-queue queue-list enlarge-size enlarge-threshold cur-queue-len lock cvar) queue
     (declare (single-float enlarge-size enlarge-threshold))
     (declare (fixnum cur-queue-len))
-    (bt2:with-lock-held (lock)
+    (bt:with-lock-held (lock)
       (if (< (the fixnum (cl-speedy-lifo:queue-count cur-queue))
              (* enlarge-threshold cur-queue-len))
           (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-            (bt2:condition-notify cvar))
+            (bt:condition-notify cvar))
           (progn
             (when ;;(%singularp queue-list) ; enlarging by add a new queue in the end of queue-list
                 (eq cur-queue (car (last queue-list)))
@@ -151,9 +151,9 @@
                 (progn (setf cur-queue (car (last queue-list))
                              cur-queue-len (cl-speedy-lifo:queue-length cur-queue))
                        (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-                         (bt2:condition-notify cvar)))
+                         (bt:condition-notify cvar)))
                 (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-                  (bt2:condition-notify cvar)
+                  (bt:condition-notify cvar)
                   )))))))
 
 (defmethod queue-peek ((queue safe-fast-lifo))
@@ -166,13 +166,13 @@
   (if waitp
       (with-slots (cur-queue queue-list cur-queue-len lock cvar) queue
         (declare (list queue-list))
-        (bt2:with-lock-held (lock)
+        (bt:with-lock-held (lock)
           (prog1 (if (queue-empty-p queue)
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (queue-empty-p queue)
-                                  do (bt2:condition-wait cvar lock))
+                                  do (bt:condition-wait cvar lock))
                             (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
                      (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
@@ -182,7 +182,7 @@
                     cur-queue-len (cl-speedy-lifo:queue-length cur-queue))))))
       (with-slots (cur-queue queue-list cur-queue-len lock) queue
         (declare (list queue-list))
-        (bt2:with-lock-held (lock)
+        (bt:with-lock-held (lock)
           (prog1 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
