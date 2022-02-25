@@ -75,9 +75,7 @@
           (prog1 (if (queue-empty-p queue)
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
-                     ;;(loop
-                     ;;  while (< (get-queue-count queue) 1)
-                     ;;  do (bt:condition-wait cvar lock))
+                     ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (queue-empty-p queue)
                                   do (bt2:condition-wait cvar lock))
                             (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
@@ -172,9 +170,7 @@
           (prog1 (if (queue-empty-p queue)
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
-                     ;;(loop
-                     ;;  while (< (get-queue-count queue) 1)
-                     ;;  do (bt:condition-wait cvar lock))
+                     ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (queue-empty-p queue)
                                   do (bt2:condition-wait cvar lock))
                             (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
