@@ -77,7 +77,8 @@
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (queue-empty-p queue)
-                                  do (bt:condition-wait cvar lock))
+                                  do (progn (bt:thread-yield)
+                                            (bt:condition-wait cvar lock)))
                             (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
                      (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
@@ -172,7 +173,8 @@
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (queue-empty-p queue)
-                                  do (bt:condition-wait cvar lock))
+                                  do (progn (bt:thread-yield)
+                                            (bt:condition-wait cvar lock)))
                             (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
                      (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
