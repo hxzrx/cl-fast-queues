@@ -550,6 +550,7 @@
 
 (define-test safe-fifo-dequeue-threads-wait2 :parent safe-fifo
   "dequeue with waitp true in threads, then enqueue in threads"
+  ;; ccl running failed
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
@@ -568,7 +569,7 @@
                             (enqueue item queue))))
       (sleep 0.1)
       (is = total (apply #'+ items))
-      (true (queue-empty-p queue)) ; all passed
+      (true (queue-empty-p queue))
       )))
 
 #+sbcl
