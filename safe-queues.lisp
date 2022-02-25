@@ -132,7 +132,7 @@
   (cl-speedy-lifo:queue-empty-p
    (car (safe-lifo-queue-list queue))))
 
-(defparameter *fault-enqueue* (list))
+;;(defparameter *fault-enqueue* (list))
 (defmethod enqueue (object (queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (cur-queue queue-list enlarge-size enlarge-threshold cur-queue-len lock cvar) queue
@@ -141,28 +141,7 @@
     (bt2:with-lock-held (lock)
       (if (< (the fixnum (cl-speedy-lifo:queue-count cur-queue))
              (* enlarge-threshold cur-queue-len))
-          #+:ignore(prog1 (cl-speedy-lifo:enqueue object cur-queue)
-                     (bt2:condition-notify cvar))
-          (prog1
-              (let ((pushed (cl-speedy-lifo:enqueue object cur-queue)))
-                (unless (integerp pushed)
-#|
-((:TO-PUSH 2 :BUT-PUSH :OVERFLOW-A6AC128A-4385-4C54-B384-8D687456C10A
-  :ARRAY-LEN 3 :FILLED-COUNT 2 :ENLARGE-LEN 3.0 :CUR-QUEUE (2 5 1) :TO-LIST
-  (1 5))
- (:TO-PUSH 5 :BUT-PUSH :OVERFLOW-A6AC128A-4385-4C54-B384-8D687456C10A
-  :ARRAY-LEN 3 :FILLED-COUNT 2 :ENLARGE-LEN 3.0 :CUR-QUEUE (2 8 8) :TO-LIST
-  (8 8)))
-|#
-                  (sb-ext:atomic-push (list :to-push object
-                                            :but-push pushed
-                                            :array-len cur-queue-len ;此参数有问题
-                                            :filled-count (the fixnum (cl-speedy-lifo:queue-count cur-queue))
-                                            :enlarge-len (* enlarge-threshold cur-queue-len)
-                                            :cur-queue (coerce cur-queue 'list)
-                                            :to-list (cl-speedy-lifo:queue-to-list cur-queue))
-                                      *fault-enqueue*))
-                pushed)
+          (prog1 (cl-speedy-lifo:enqueue object cur-queue)
             (bt2:condition-notify cvar))
           (progn
             (when ;;(%singularp queue-list) ; enlarging by add a new queue in the end of queue-list
@@ -184,7 +163,6 @@
   (with-slots (cur-queue) queue
     (cl-speedy-lifo:queue-peek cur-queue)))
 
-(defparameter *fault-dequeue* (list))
 (defmethod dequeue ((queue safe-fast-lifo) &key (keep-in-queue-p t) (waitp nil))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (if waitp
@@ -199,18 +177,8 @@
                      ;;  do (bt:condition-wait cvar lock))
                      (progn (loop while (queue-empty-p queue)
                                   do (bt2:condition-wait cvar lock))
-                            ;;(cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
-                            (let ((popped (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)))
-                                (when (null (integerp popped))
-                                  (sb-ext:atomic-push popped *fault-dequeue*))
-                                popped))
-                     #+:ignore(let ((popped (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)))
-                       (when (null (integerp popped))
-                         (sb-ext:atomic-push popped *fault-dequeue*))
-                       popped)
-
+                            (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
                      (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
-
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
