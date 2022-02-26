@@ -49,14 +49,14 @@ but it's enough in this lib since the car of lst will never be nil."
   (with-slots (push-queue queue-list enlarge-size) queue
     (declare (single-float enlarge-size))
     (declare (list queue-list))
-    (prog1 (cl-speedy-queue:enqueue object push-queue)
-      ;; when push-queue is full, add a new longer queue at the end of the list
-      (when (cl-speedy-queue:queue-full-p push-queue)
-        (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
-                                                 enlarge-size))))
-               (new-queue (cl-speedy-queue:make-queue new-len)))
-          (setf queue-list (nconc queue-list (list new-queue))
-                push-queue new-queue))))))
+    ;; when push-queue is full, add a new longer queue at the end of the list
+    (when (cl-speedy-queue:queue-full-p push-queue)
+      (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
+                                               enlarge-size))))
+             (new-queue (cl-speedy-queue:make-queue new-len)))
+        (setf queue-list (nconc queue-list (list new-queue))
+              push-queue new-queue)))
+    (cl-speedy-queue:enqueue object push-queue)))
 
 (defmethod queue-peek ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
