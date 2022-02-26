@@ -28,9 +28,7 @@
   (finish (make-unsafe-fifo))
   (finish (make-unsafe-fifo :init-length 1))
   (finish (make-unsafe-fifo :enlarge-size 1))
-  (finish (make-unsafe-fifo :enlarge-threshold 1))
   (fail (make-unsafe-fifo :init-length 0))
-  (fail (make-unsafe-fifo :enlarge-threshold 1.00001))
   (fail (make-unsafe-fifo :enlarge-size 0.999999)))
 
 (define-test %singularp :parent cl-fast-queues-tests
@@ -149,9 +147,7 @@
   (finish (make-unsafe-lifo))
   (finish (make-unsafe-lifo :init-length 1))
   (finish (make-unsafe-lifo :enlarge-size 1))
-  (finish (make-unsafe-lifo :enlarge-threshold 1))
   (fail (make-unsafe-lifo :init-length 0))
-  (fail (make-unsafe-lifo :enlarge-threshold 1.00001))
   (fail (make-unsafe-lifo :enlarge-size 0.999999)))
 
 (define-test unsafe-lifo-queue-count-0 :parent unsafe-lifo
@@ -267,9 +263,7 @@
   (finish (make-safe-fifo))
   (finish (make-safe-fifo :init-length 1))
   (finish (make-safe-fifo :enlarge-size 1))
-  (finish (make-safe-fifo :enlarge-threshold 1))
   (fail (make-safe-fifo :init-length 0))
-  (fail (make-safe-fifo :enlarge-threshold 1.00001))
   (fail (make-safe-fifo :enlarge-size 0.999999)))
 
 (define-test safe-fifo-queue-count-0 :parent safe-fifo
@@ -382,9 +376,7 @@
   (finish (make-unsafe-lifo))
   (finish (make-unsafe-lifo :init-length 1))
   (finish (make-unsafe-lifo :enlarge-size 1))
-  (finish (make-unsafe-lifo :enlarge-threshold 1))
   (fail (make-unsafe-lifo :init-length 0))
-  (fail (make-unsafe-lifo :enlarge-threshold 1.00001))
   (fail (make-unsafe-lifo :enlarge-size 0.999999)))
 
 (define-test safe-lifo-queue-count-0 :parent safe-lifo
@@ -599,7 +591,8 @@
   ;; but succeeded when I use a loop in the def of dequeue.
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10))))
+    (let* ((len (1+ (random 10)))
+           (queue (make-safe-fifo :init-length len))
            (items (loop for i below (random 100) collect (random 100)))
            (total (list 0)))
       (dolist (item items)
@@ -611,6 +604,8 @@
                             (enqueue item queue))))
       (sleep 0.1)
       (is = (car total) (apply #'+ items))
+      (when (/= (car total) (apply #'+ items))
+        (format t "init-len: ~d~%items:~%~d~%queue:~%~d~%" len items queue))
       (true (queue-empty-p queue)))))
 
 
