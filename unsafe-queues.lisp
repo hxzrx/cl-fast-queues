@@ -148,10 +148,11 @@ but it's enough in this lib since the car of lst will never be nil."
 (defmethod dequeue ((queue unsafe-fast-lifo) &key (keep-in-queue-p t) waitp)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (ignore waitp))
-  (with-slots (cur-queue queue-list) queue
+  (with-slots (cur-queue queue-list cur-queue-len) queue
     (declare (list queue-list))
     (prog1 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)
       (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
                  (null (%singularp queue-list)))
         (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
-              cur-queue (car (last queue-list)))))))
+              cur-queue (car (last queue-list))
+              cur-queue-len (cl-speedy-lifo:queue-length cur-queue))))))

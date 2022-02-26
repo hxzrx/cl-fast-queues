@@ -189,4 +189,6 @@
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
-                    cur-queue (car (last queue-list)))))))))
+                    cur-queue (car (last queue-list))
+                    cur-queue-len (cl-speedy-lifo:queue-length cur-queue)
+                    )))))))
