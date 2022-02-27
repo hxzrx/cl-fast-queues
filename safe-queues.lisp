@@ -87,9 +87,7 @@
   (queue-list nil :type list)
   (lock (bt:make-lock "SAFE-LIFO-LOCK"))
   (cvar (bt:make-condition-variable :name "SAFE-LIFO-CVAR"))
-  (cur-queue-len 1000 :type fixnum) ; length of cur-queue
-  (enlarge-size 1.5 :type single-float)
-  (enlarge-threshold 1.0 :type single-float))
+  (enlarge-size 1.5 :type single-float))
 
 (defun safe-lifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -103,9 +101,7 @@
   (assert (> init-length 0))
   (make-safe-fast-lifo :queue-list (list queue)
                        :cur-queue queue
-                       :cur-queue-len init-length
-                       :enlarge-size (float enlarge-size)
-                       :enlarge-threshold (float enlarge-threshold)))
+                       :enlarge-size (float enlarge-size)))
 
 (defmethod queue-count ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -117,31 +113,19 @@
   (cl-speedy-lifo:queue-empty-p
    (car (safe-lifo-queue-list queue))))
 
-;;(defparameter *fault-enqueue* (list))
 (defmethod enqueue (object (queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list enlarge-size enlarge-threshold cur-queue-len lock cvar) queue
-    (declare (single-float enlarge-size enlarge-threshold))
-    (declare (fixnum cur-queue-len))
+  (with-slots (cur-queue queue-list enlarge-size lock cvar) queue
+    (declare (single-float enlarge-size))
     (bt:with-lock-held (lock)
-      (if (< (the fixnum (cl-speedy-lifo:queue-count cur-queue))
-             (* enlarge-threshold cur-queue-len))
-          (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-            (bt:condition-notify cvar))
-          (progn
-            (when ;;(%singularp queue-list) ; enlarging by add a new queue in the end of queue-list
-                (eq cur-queue (car (last queue-list)))
-              (let* ((new-len (the fixnum (truncate (* cur-queue-len enlarge-size))))
-                     (new-queue (cl-speedy-lifo:make-queue new-len)))
-                (setf queue-list (nconc queue-list (list new-queue)))))
-            (if (cl-speedy-lifo:queue-full-p cur-queue) ; check to switch to the last element of queue-list
-                (progn (setf cur-queue (car (last queue-list))
-                             cur-queue-len (cl-speedy-lifo:queue-length cur-queue))
-                       (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-                         (bt:condition-notify cvar)))
-                (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-                  (bt:condition-notify cvar)
-                  )))))))
+      (when (cl-speedy-lifo:queue-full-p cur-queue)
+        (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo:queue-length cur-queue))
+                                                 enlarge-size))))
+               (new-queue (cl-speedy-lifo:make-queue new-len)))
+          (push new-queue queue-list)
+          (setf cur-queue new-queue)))
+      (prog1 (cl-speedy-lifo:enqueue object cur-queue)
+        (bt:condition-notify cvar)))))
 
 (defmethod queue-peek ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -165,16 +149,13 @@
                      (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
-              (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
-                    cur-queue (car (last queue-list))
-                    cur-queue-len (cl-speedy-lifo:queue-length cur-queue))))))
+              (setf queue-list (cdr queue-list)
+                    cur-queue (car  queue-list))))))
       (with-slots (cur-queue queue-list cur-queue-len lock) queue
         (declare (list queue-list))
         (bt:with-lock-held (lock)
           (prog1 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)
             (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
-              (setf queue-list (subseq queue-list 0 (1- (length queue-list)))
-                    cur-queue (car (last queue-list))
-                    cur-queue-len (cl-speedy-lifo:queue-length cur-queue)
-                    )))))))
+              (setf queue-list (cdr queue-list)
+                    cur-queue (car  queue-list))))))))
