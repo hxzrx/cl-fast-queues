@@ -2,14 +2,15 @@
 (asdf:defsystem #:cl-fast-queues
   :author "He Xiangzhi <hexiangzhi@gmail.com>"
   :licence "MIT"
-  :version "1.0.1"
-  :description "cl-fast-queues implement non-consing, optimized unbounded LIFO and FIFO queues"
+  :version "1.0.2"
+  :description "cl-fast-queues implements arrays based, optimized unbounded LIFO and FIFO queues for both unsafe and safe accessing."
   :serial t
   :in-order-to ((test-op (test-op "cl-fast-queues/tests")))
   :depends-on (:bordeaux-threads
                :cl-speedy-lifo)
   :components ((:file "packages")
                (:file "speedy-queue")
+               (:file "list-queue")
                (:file "unsafe-queues")
                (:file "safe-queues")))
 
