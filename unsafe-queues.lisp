@@ -18,11 +18,12 @@
   (unsafe-fast-fifo-p queue))
 
 (defun make-unsafe-fifo (&key (init-length 1000) (enlarge-size 1.5)
-                         &aux (queue (cl-speedy-queue:make-queue init-length)))
+                         &aux (queue (cl-speedy-queue:make-queue init-length))
+                           (queue-list (%make-list-queue)))
   (declare (fixnum init-length))
   (assert (>= enlarge-size 1.0))
   (assert (> init-length 0))
-  (make-unsafe-fast-fifo :queue-list (list queue)
+  (make-unsafe-fast-fifo :queue-list (%list-queue-enqueue queue queue-list)
                          :push-queue queue
                          :pop-queue queue
                          :enlarge-size (float enlarge-size)))
@@ -38,7 +39,8 @@ but it's enough in this lib since the car of lst will never be nil."
 
 (defmethod queue-count ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (the fixnum (apply #'+ (mapcar #'cl-speedy-queue:queue-count (unsafe-fifo-queue-list queue)))))
+  (the fixnum (apply #'+ (mapcar #'cl-speedy-queue:queue-count
+                                 (%list-queue-contents (unsafe-fifo-queue-list queue))))))
 
 (defmethod queue-empty-p ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -54,8 +56,8 @@ but it's enough in this lib since the car of lst will never be nil."
       (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
                                                enlarge-size))))
              (new-queue (cl-speedy-queue:make-queue new-len)))
-        (setf queue-list (nconc queue-list (list new-queue))
-              push-queue new-queue)))
+        (%list-queue-enqueue new-queue queue-list)
+        (setf push-queue new-queue)))
     (cl-speedy-queue:enqueue object push-queue)))
 
 (defmethod queue-peek ((queue unsafe-fast-fifo))
@@ -68,9 +70,9 @@ but it's enough in this lib since the car of lst will never be nil."
   (with-slots (pop-queue queue-list) queue
     (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
       (when (and (cl-speedy-queue:queue-empty-p pop-queue)
-                 (null (%singularp queue-list)))
-        (setf queue-list (cdr queue-list)
-              pop-queue (car queue-list))))))
+                 (null (%singularp (%list-queue-contents queue-list))))
+        (%list-queue-dequeue queue-list)
+        (setf pop-queue (%list-queue-peek queue-list))))))
 
 
 ;;; lifo unbound queue

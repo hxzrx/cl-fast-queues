@@ -15,18 +15,20 @@
   (safe-fast-fifo-p queue))
 
 (defun make-safe-fifo (&key (init-length 1000) (enlarge-size 1.5)
-                       &aux (queue (cl-speedy-queue:make-queue init-length)))
+                       &aux (queue (cl-speedy-queue:make-queue init-length))
+                         (queue-list (%make-list-queue)))
   (declare (fixnum init-length))
   (assert (>= enlarge-size 1.0))
   (assert (> init-length 0))
-  (make-safe-fast-fifo :queue-list (list queue)
+  (make-safe-fast-fifo :queue-list (%list-queue-enqueue queue queue-list)
                        :push-queue queue
                        :pop-queue queue
                        :enlarge-size (float enlarge-size)))
 
 (defmethod queue-count ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (apply #'+ (mapcar #'cl-speedy-queue:queue-count (safe-fifo-queue-list queue))))
+  (the fixnum (apply #'+ (mapcar #'cl-speedy-queue:queue-count
+                                 (%list-queue-contents (safe-fifo-queue-list queue))))))
 
 (defmethod queue-empty-p ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -43,8 +45,8 @@
         (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
                                                  enlarge-size))))
                (new-queue (cl-speedy-queue:make-queue new-len)))
-          (setf queue-list (nconc queue-list (list new-queue))
-                push-queue new-queue)))
+          (%list-queue-enqueue new-queue queue-list)
+          (setf push-queue new-queue)))
       (prog1 (cl-speedy-queue:enqueue object push-queue)
         (bt:condition-notify cvar)))))
 
@@ -68,16 +70,16 @@
                             (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
                      (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
-                       (null (%singularp queue-list)))
-              (setf queue-list (cdr queue-list)
-                    pop-queue (car queue-list))))))
+                       (null (%singularp (%list-queue-contents queue-list))))
+              (%list-queue-dequeue queue-list)
+              (setf pop-queue (%list-queue-peek queue-list))))))
       (with-slots (pop-queue queue-list lock) queue
         (bt:with-lock-held (lock)
           (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
-                       (null (%singularp queue-list)))
-              (setf queue-list (cdr queue-list)
-                    pop-queue (car queue-list))))))))
+                       (null (%singularp (%list-queue-contents queue-list))))
+              (%list-queue-dequeue queue-list)
+              (setf pop-queue (%list-queue-peek queue-list))))))))
 
 
 ;;; safe lifo unbound queue
