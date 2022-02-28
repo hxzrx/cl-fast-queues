@@ -1,17 +1,13 @@
 ## About
-
 cl-fast-queues implements arrays based, optimized unbounded LIFO and FIFO queues for both unsafe and safe accessing. It uses arrays to implement both FIFO queue and LIFO queue, and extends the queues with new longer arrays before overflowing.
 
-Both FIFO and LIFO queues have unsafe and safe version, so the latter implements thread safe apis for basic operations of queues such as enqueue and dequeue, and he underground queues are made by cl-speedy-queue (something modified with vanilla cl-speedy-queue and it comes in speedy-queue.lisp together with this lib) and cl-speedy-lifo according.
+Both FIFO and LIFO queues have unsafe and safe version, so the latter implements thread safe apis for basic operations of queues such as enqueue and dequeue, and he underground queues are made by cl-speedy-queue (something modified with vanilla cl-speedy-queue and it comes in speedy-queue.lisp together with this library) and cl-speedy-lifo according.
 
 ## Date Types
-
 ### unsafe-fast-fifo
-
 The struct of unsafe-fifo, unsafe among threads.
 
 #### slots
-
 ##### push-queue
 An array create by cl-speedy-queue:make-queue, which is the container that new items push into.
 
@@ -22,14 +18,12 @@ an array create by `cl-speedy-queue:make-queue`, which is the container that old
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
 
 ##### enlarge-size
-Before  push-queue overflows, another array should create whose length is `(* push-queue-len push-queue-len)`.
+When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
 One expects new array will be longer, so enlarge-size should be at least 1.
 The default value is 1.5.
 
 ### unsafe-fast-lifo
-
 The struct of unsafe-lifo, unsafe among threads.
-
 #### slots
 ##### cur-queue
 An array create by cl-speedy-lifo:make-queue, which is the container that new items push into and pops out.
@@ -38,16 +32,14 @@ An array create by cl-speedy-lifo:make-queue, which is the container that new it
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
 
 ##### enlarge-size
-Before  cur-queue overflows, another array should create whose length is `(* push-queue-len push-queue-len)`.
+When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
 One expects new array will be longer, so enlarge-size should be at least 1.
 The default value is 1.5.
 
 ### safe-fast-fifo
-
 The struct of safe-fifo  that can be safely accessed among threads.
 
 #### slots
-
 ##### push-queue
 An array create by cl-speedy-queue:make-queue, which is the container that new items push into.
 
@@ -58,7 +50,7 @@ an array create by `cl-speedy-queue:make-queue`, which is the container that old
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
 
 ##### enlarge-size
-Before  push-queue overflows, another array should create whose length is `(* push-queue-len push-queue-len)`.
+When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
 One expects new array will be longer, so enlarge-size should be at least 1.
 The default value is 1.5.
 
@@ -69,7 +61,6 @@ A lock created with Bordeaux Threads which is used to protect accessing the slot
 A condition variable created with Bordeaux Threads which is used in enqueue and dequeue.
 
 ### safe-fast-lifo
-
 The struct of safe-lifo that can be safely accessed among threads.
 
 #### slots
@@ -80,7 +71,7 @@ An array create by cl-speedy-lifo:make-queue, which is the container that new it
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
 
 ##### enlarge-size
-Before  cur-queue overflows, another array should create whose length is `(* push-queue-len push-queue-len)`.
+When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
 One expects new array will be longer, so enlarge-size should be at least 1.
 The default value is 1.5.
 
@@ -90,18 +81,17 @@ A lock created with Bordeaux Threads which is used to protect accessing the slot
 ##### cvar
 A condition variable created with Bordeaux Threads which is used in enqueue and dequeue.
 
-
 ## APIs
-### function `make-unsafe-fifo (&key (init-length 1000) (enlarge-size 1.5) (enlarge-threshold 1.0)`
+### function `make-unsafe-fifo (&key (init-length 1000) (enlarge-size 1.5)`
 Creates an instance of unsafe-fast-fifo.
 
-### function `make-unsafe-lifo (&key (init-length 1000) (enlarge-size 1.5) (enlarge-threshold 1.0)`
+### function `make-unsafe-lifo (&key (init-length 1000) (enlarge-size 1.5)`
 Creates an instance of unsafe-fast-lifo.
 
-### function `make-safe-fifo (&key (init-length 1000) (enlarge-size 1.5) (enlarge-threshold 1.0)`
+### function `make-safe-fifo (&key (init-length 1000) (enlarge-size 1.5)`
 Creates an instance of safe-fast-fifo.
 
-### function `make-safe-lifo (&key (init-length 1000) (enlarge-size 1.5) (enlarge-threshold 1.0)`
+### function `make-safe-lifo (&key (init-length 1000) (enlarge-size 1.5)`
 Creates an instance of safe-fast-lifo.
 
 ### method `enqueue (object queue)`
@@ -125,6 +115,20 @@ Returns NIL if there is at least one object in the queue.
 
 ### method `queue-count (queue)`
 Return the count of the objects can be dequeued in the queue.
+
+### method `queue-find (item (queue unsafe-fast-fifo) &key (key #'identity) (test #'eql))`
+If `item' has been found in `queue', return the item itself, or else return nil.
+So if `item' is nil, the returned value will be nil whatever.
+
+### method `queue-to-list (queue)`
+Return a list of items those have been enqueued.
+To make the returned list have the same popping order,
+the order of the returned list is the same as queue order for the FIFO queues,
+,and the order of the returned list is the reverse of the enqueue order for LIFO queues.
+
+### method list-to-queue (list queue-type)
+Make a queue, then enque the items in the list from left to right.
+`queue-type' is a keyword which should be one of `'(:unsafe-fifo :unsafe-lifo :safe-fifo :safe-lifo)`.
 
 ### `*overflow-flag*`
 An special symbol return by enqueue if the queue meets its upper limit.
