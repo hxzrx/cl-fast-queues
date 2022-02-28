@@ -2,7 +2,7 @@
 (asdf:defsystem #:cl-fast-queues
   :author "He Xiangzhi <hexiangzhi@gmail.com>"
   :licence "MIT"
-  :version "1.1.0"
+  :version "1.2.0"
   :description "cl-fast-queues implements arrays based, optimized unbounded LIFO and FIFO queues for both unsafe and safe accessing."
   :serial t
   :in-order-to ((test-op (test-op "cl-fast-queues/tests")))
@@ -17,7 +17,7 @@
 (defsystem "cl-fast-queues/tests"
   :author "He Xiang-zhi"
   :license "MIT"
-  :version "1.1.0"
+  :version "1.2.0"
   :serial t
   :depends-on (:cl-fast-queues
                :parachute)
