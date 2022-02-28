@@ -82,16 +82,21 @@
               (setf pop-queue (%list-queue-peek queue-list))))))))
 
 (defmethod queue-find (item (queue safe-fast-fifo) &key (key #'identity) (test #'eql))
+  "If `item' has been found in `queue', return the item itself, or else return nil.
+So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (some #'(lambda (sfifo) (cl-speedy-queue:queue-find item sfifo :key key :test test))
         (%list-queue-contents (safe-fifo-queue-list queue))))
 
 (defmethod queue-to-list ((queue safe-fast-fifo))
+  "Return a list of items those have been enqueued,
+and the order of the returned list is the same as enqueue order. (so that they will have the same dequeue order)"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (mapcan #'cl-speedy-queue:queue-to-list
           (%list-queue-contents (safe-fifo-queue-list queue))))
 
 (defmethod list-to-queue (list (queue-type (eql :safe-fifo)))
+  "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
   (let* ((len (length list))
@@ -182,15 +187,20 @@
                     cur-queue (car  queue-list))))))))
 
 (defmethod queue-find (item (queue safe-fast-lifo) &key (key #'identity) (test #'eql))
+  "If `item' has been found in `queue', return the item itself, or else return nil.
+So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (some #'(lambda (slifo) (cl-speedy-lifo:queue-find item slifo :key key :test test))
         (safe-lifo-queue-list queue)))
 
 (defmethod queue-to-list ((queue safe-fast-lifo))
+  "Return a list of items those have been enqueued,
+and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (mapcan #'cl-speedy-lifo:queue-to-list (safe-lifo-queue-list queue)))
 
 (defmethod list-to-queue (list (queue-type (eql :safe-lifo)))
+  "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
   (let* ((len (length list))
