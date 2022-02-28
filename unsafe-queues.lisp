@@ -75,7 +75,7 @@ but it's enough in this lib since the car of lst will never be nil."
         (setf pop-queue (%list-queue-peek queue-list))))))
 
 (defmethod queue-find (item (queue unsafe-fast-fifo) &key (key #'identity) (test #'eql))
-  "If `item' has been found in `queue', return the item itself, or else return nil.
+  "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (some #'(lambda (ufifo) (cl-speedy-queue:queue-find item ufifo :key key :test test))
@@ -157,7 +157,7 @@ and the order of the returned list is the same as queue order. (so that they wil
               cur-queue (car  queue-list))))))
 
 (defmethod queue-find (item (queue unsafe-fast-lifo) &key (key #'identity) (test #'eql))
-  "If `item' has been found in `queue', return the item itself, or else return nil.
+  "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (some #'(lambda (ulifo) (cl-speedy-lifo:queue-find item ulifo :key key :test test))
