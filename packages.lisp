@@ -15,6 +15,9 @@
    :queue-peek
    :queue-empty-p
    :queue-count
+   :queue-find
+   :queue-to-list
+   :list-to-queue
    :*overflow-flag*
    :*underflow-flag*
    ))

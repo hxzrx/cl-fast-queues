@@ -6,6 +6,8 @@
   (:use :cl)
   (:export
    :make-queue
+   :queue-to-list
+   :list-to-queue
    :queue-count
    :queue-length
    :queue-peek
@@ -13,6 +15,7 @@
    :queue-empty-p
    :enqueue
    :dequeue
+   :queue-find
    :*overflow-flag*
    :*underflow-flag*))
 
@@ -217,3 +220,37 @@ When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref 
 this is useful when the queue holds very big objects."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%dequeue queue keep-in-queue-p))
+
+(defun queue-to-list (queue)
+  "Conver a queue to a list, the first of the returned list is the first item to be popped."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (simple-array queue))
+  (if (queue-empty-p queue)
+      nil
+      (let ((in (%queue-in queue))
+            (out (%queue-out queue)))
+        (if (> in out)
+            (coerce (subseq queue out in) 'list)
+            (nconc (coerce (subseq queue out) 'list)
+                   (coerce (subseq queue 2 in) 'list))))))
+
+(defun list-to-queue (list)
+  "Conver a list to a queue, the first of the returned queue is the car or the list."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (list list))
+  (let* ((len (length list))
+         (queue (make-queue len)))
+    (dolist (item list)
+      (enqueue item))
+    queue))
+
+(defun queue-find (item queue &key (key #'identity) (test #'eql))
+  "Find `item' in `queue'"
+  (if (queue-empty-p queue)
+      nil
+      (let ((in (%queue-in queue))
+            (out (%queue-out queue)))
+        (if (> in out)
+            (find item (subseq queue out in) :key key :test test)
+            (or (find item (subseq queue out) :key key :test test)
+                (find item (subseq queue 2 in) :key key :test test))))))

@@ -74,6 +74,24 @@ but it's enough in this lib since the car of lst will never be nil."
         (%list-queue-dequeue queue-list)
         (setf pop-queue (%list-queue-peek queue-list))))))
 
+(defmethod queue-find (item (queue unsafe-fast-fifo) &key (key #'identity) (test #'eql))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (some #'(lambda (ufifo) (cl-speedy-queue:queue-find item ufifo :key key :test test))
+        (%list-queue-contents (unsafe-fifo-queue-list queue))))
+
+(defmethod queue-to-list ((queue unsafe-fast-fifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (mapcan #'cl-speedy-queue:queue-to-list
+          (%list-queue-contents (unsafe-fifo-queue-list queue))))
+
+(defmethod list-to-queue (list (queue-type (eql :unsafe-fifo)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (list list))
+  (let* ((len (length list))
+         (queue (make-unsafe-fifo :init-length len)))
+    (dolist (item list)
+      (enqueue item queue))
+    queue))
 
 ;;; lifo unbound queue
 
@@ -132,3 +150,21 @@ but it's enough in this lib since the car of lst will never be nil."
                  (null (%singularp queue-list)))
         (setf queue-list (cdr queue-list)
               cur-queue (car  queue-list))))))
+
+(defmethod queue-find (item (queue unsafe-fast-lifo) &key (key #'identity) (test #'eql))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (some #'(lambda (ulifo) (cl-speedy-lifo:queue-find item ulifo :key key :test test))
+        (unsafe-lifo-queue-list queue)))
+
+(defmethod queue-to-list ((queue unsafe-fast-lifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (mapcan #'cl-speedy-lifo:queue-to-list (unsafe-lifo-queue-list queue)))
+
+(defmethod list-to-queue (list (queue-type (eql :unsafe-lifo)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (list list))
+  (let* ((len (length list))
+         (queue (make-unsafe-lifo :init-length len)))
+    (dolist (item list)
+      (enqueue item queue))
+    queue))
