@@ -245,12 +245,14 @@ this is useful when the queue holds very big objects."
     queue))
 
 (defun queue-find (item queue &key (key #'identity) (test #'eql))
-  "Find `item' in `queue'"
+  "Find `item' in `queue', return the item that has been found."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (function key test))
   (if (queue-empty-p queue)
       nil
       (let ((in (%queue-in queue))
             (out (%queue-out queue)))
         (if (> in out)
-            (find item (subseq queue out in) :key key :test test)
-            (or (find item (subseq queue out) :key key :test test)
-                (find item (subseq queue 2 in) :key key :test test))))))
+            (find item  queue :start out :end in :key key :test test)
+            (or (find item queue :start out :key key :test test)
+                (find item queue :start 2 :end in :key key :test test))))))
