@@ -7,9 +7,6 @@
 
 ;;; A queue is a (last . contents) pair
 
-(proclaim '(inline %list-queue-contents %make-list-queue %list-queue-enqueue %list-queue-dequeue
-            %list-queue-peek %list-queue-empty-p %list-queue-nconc))
-
 (defun %list-queue-contents (q) ; queue-contents in the raw src
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cdr q))
