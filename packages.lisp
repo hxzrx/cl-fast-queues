@@ -20,4 +20,5 @@
    :list-to-queue
    :*overflow-flag*
    :*underflow-flag*
+   :*enlarge-size*
    ))

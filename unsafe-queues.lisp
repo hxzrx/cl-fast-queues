@@ -1,32 +1,8 @@
 (in-package :cl-fast-queues)
 
-
-;;; fifo unbound queue
-
-
-(defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
-(defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*)
-
-(defstruct (unsafe-fast-fifo (:conc-name unsafe-fifo-))
-  (push-queue nil :type simple-vector)
-  (pop-queue  nil :type simple-vector)
-  (queue-list nil :type list)
-  (enlarge-size 1.5 :type single-float))
-
-(defun unsafe-fifo-p (queue)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (unsafe-fast-fifo-p queue))
-
-(defun make-unsafe-fifo (&key (init-length 1000) (enlarge-size 1.5)
-                         &aux (queue (cl-speedy-queue:make-queue init-length))
-                           (queue-list (%make-list-queue)))
-  (declare (fixnum init-length))
-  (assert (>= enlarge-size 1.0))
-  (assert (> init-length 0))
-  (make-unsafe-fast-fifo :queue-list (%list-queue-enqueue queue queue-list)
-                         :push-queue queue
-                         :pop-queue queue
-                         :enlarge-size (float enlarge-size)))
+(defvar *overflow-flag* #.cl-speedy-lifo:*overflow-flag*)
+(defvar *underflow-flag* #.cl-speedy-lifo:*underflow-flag*)
+(defvar *enlarge-size* (the single-float 1.5))
 
 (declaim (inline %singularp))
 (defun %singularp (lst)
@@ -36,6 +12,26 @@ but it's enough in this lib since the car of lst will never be nil."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list lst))
   (and (eq nil (cdr lst))))
+
+;;; fifo unbound queue
+
+(defstruct (unsafe-fast-fifo (:conc-name unsafe-fifo-))
+  (push-queue nil :type simple-vector)
+  (pop-queue  nil :type simple-vector)
+  (queue-list nil :type list))
+
+(defun unsafe-fifo-p (queue)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (unsafe-fast-fifo-p queue))
+
+(defun make-unsafe-fifo (&optional (init-length 1000)
+                         &aux (queue (cl-speedy-queue:make-queue init-length))
+                           (queue-list (%make-list-queue)))
+  (declare (fixnum init-length))
+  (assert (> init-length 0))
+  (make-unsafe-fast-fifo :queue-list (%list-queue-enqueue queue queue-list)
+                         :push-queue queue
+                         :pop-queue queue))
 
 (defmethod queue-count ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -48,13 +44,13 @@ but it's enough in this lib since the car of lst will never be nil."
 
 (defmethod enqueue (object (queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (push-queue queue-list enlarge-size) queue
-    (declare (single-float enlarge-size))
+  (with-slots (push-queue queue-list) queue
+    (declare (single-float *enlarge-size*))
     (declare (list queue-list))
     ;; when push-queue is full, add a new longer queue at the end of the list
     (when (cl-speedy-queue:queue-full-p push-queue)
       (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
-                                               enlarge-size))))
+                                               *enlarge-size*))))
              (new-queue (cl-speedy-queue:make-queue new-len)))
         (%list-queue-enqueue new-queue queue-list)
         (setf push-queue new-queue)))
@@ -102,21 +98,18 @@ and the order of the returned list is the same as queue order. (so that they wil
 
 (defstruct (unsafe-fast-lifo (:conc-name unsafe-lifo-))
   (cur-queue nil :type simple-vector)
-  (queue-list nil :type list)
-  (enlarge-size 1.5 :type single-float))
+  (queue-list nil :type list))
 
 (defun unsafe-lifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (unsafe-fast-lifo-p queue))
 
-(defun make-unsafe-lifo (&key (init-length 1000) (enlarge-size 1.5)
+(defun make-unsafe-lifo (&optional (init-length 1000)
                          &aux (queue (cl-speedy-lifo:make-queue init-length)))
   (declare (fixnum init-length))
-  (assert (>= enlarge-size 1.0))
   (assert (> init-length 0))
   (make-unsafe-fast-lifo :queue-list (list queue)
-                         :cur-queue queue
-                         :enlarge-size (float enlarge-size)))
+                         :cur-queue queue))
 
 (defmethod queue-count ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -130,12 +123,12 @@ and the order of the returned list is the same as queue order. (so that they wil
 
 (defmethod enqueue (object (queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list enlarge-size) queue
-    (declare (single-float enlarge-size))
+  (with-slots (cur-queue queue-list) queue
+    (declare (single-float *enlarge-size*))
     ;; when push-queue is full, push a new longer queue to queue-list
     (when (cl-speedy-lifo:queue-full-p cur-queue)
       (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo:queue-length cur-queue))
-                                               enlarge-size))))
+                                               *enlarge-size*))))
              (new-queue (cl-speedy-lifo:make-queue new-len)))
         (push new-queue queue-list)
         (setf cur-queue new-queue)))

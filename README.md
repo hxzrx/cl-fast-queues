@@ -17,11 +17,6 @@ an array create by `cl-speedy-queue:make-queue`, which is the container that old
 ##### queue-list
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
 
-##### enlarge-size
-When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
-One expects new array will be longer, so enlarge-size should be at least 1.
-The default value is 1.5.
-
 ### unsafe-fast-lifo
 The struct of unsafe-lifo, unsafe among threads.
 #### slots
@@ -30,11 +25,6 @@ An array create by cl-speedy-lifo:make-queue, which is the container that new it
 
 ##### queue-list
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
-
-##### enlarge-size
-When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
-One expects new array will be longer, so enlarge-size should be at least 1.
-The default value is 1.5.
 
 ### safe-fast-fifo
 The struct of safe-fifo  that can be safely accessed among threads.
@@ -48,11 +38,6 @@ an array create by `cl-speedy-queue:make-queue`, which is the container that old
 
 ##### queue-list
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
-
-##### enlarge-size
-When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
-One expects new array will be longer, so enlarge-size should be at least 1.
-The default value is 1.5.
 
 ##### lock
 A lock created with Bordeaux Threads which is used to protect accessing the slots.
@@ -70,11 +55,6 @@ An array create by cl-speedy-lifo:make-queue, which is the container that new it
 ##### queue-list
 A list of queues create by `cl-speedy-queue:make-queue`, this list will contain at least one array, when the length of queue-list is one, push-queue eq to pop-queue.
 
-##### enlarge-size
-When push-queue is full, another array should create whose length is `(* push-queue-len enlarge-size)`.
-One expects new array will be longer, so enlarge-size should be at least 1.
-The default value is 1.5.
-
 ##### lock
 A lock created with Bordeaux Threads which is used to protect accessing the slots.
 
@@ -82,16 +62,16 @@ A lock created with Bordeaux Threads which is used to protect accessing the slot
 A condition variable created with Bordeaux Threads which is used in enqueue and dequeue.
 
 ## APIs
-### function `make-unsafe-fifo (&key (init-length 1000) (enlarge-size 1.5)`
+### function `make-unsafe-fifo (&optional (init-length 1000)`
 Creates an instance of unsafe-fast-fifo.
 
-### function `make-unsafe-lifo (&key (init-length 1000) (enlarge-size 1.5)`
+### function `make-unsafe-lifo (&optional (init-length 1000)`
 Creates an instance of unsafe-fast-lifo.
 
-### function `make-safe-fifo (&key (init-length 1000) (enlarge-size 1.5)`
+### function `make-safe-fifo (&optional (init-length 1000)`
 Creates an instance of safe-fast-fifo.
 
-### function `make-safe-lifo (&key (init-length 1000) (enlarge-size 1.5)`
+### function `make-safe-lifo (&optional (init-length 1000)`
 Creates an instance of safe-fast-lifo.
 
 ### method `enqueue (object queue)`
@@ -137,3 +117,7 @@ If this symbol return in your code, please issue a bug.
 ### `*underflow-flag*`
 An special symbol return by dequeue if the queue is empty.
 If this symbol return in your code and the queue is an instance of safe-fifo or safe-lifo, please issue a bug.
+
+### `*enlarge-size*`
+When the queue is full, another array will be created whose length is `*enlarge-size*` times longer than the current longest array.
+The default value is 1.5.
