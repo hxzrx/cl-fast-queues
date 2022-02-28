@@ -121,3 +121,94 @@ If this symbol return in your code and the queue is an instance of safe-fifo or 
 ### `*enlarge-size*`
 When the queue is full, another array will be created whose length is `*enlarge-size*` times longer than the current longest array.
 The default value is 1.5.
+
+## Performance
+
+In this section, 10^8 times of enqueue and 10^8 times of dequeue were made and have they were  timed with common lisp's `time` macro, the results were showed below.
+All of the tests were ran in SBCL,  in a Linux x86-64 vm hosted on win10, the vm has 4 cores and 16G memory.
+All time units are in seconds.
+
+### FIFO, single thread, init-length 1000
+
+In this table, four FIFO queues were compared which make 10^n times of enqueue+dequeue.
+The init-length of unsafe-fifo and safe-fifo were set to default (1000).
+All of these result were ran in single thread.
+
+
+| 10^n | unsafe-fifo | safe-fifo | cl-speedy-queue | list-queue |
+| :--: | :---------: | :-------: | :-------------: | :--------: |
+|  3   |    0.000    |   0.000   |      0.000      |   0.000    |
+|  4   |    0.000    |   0.004   |      0.000      |   0.000    |
+|  5   |    0.004    |   0.064   |      0.000      |   0.000    |
+|  6   |    0.072    |   0.604   |      0.012      |   0.020    |
+|  7   |    0.632    |   6.200   |      0.148      |   0.180    |
+|  8   |    6.382    |  62.916   |      1.542      |   2.080    |
+
+
+### LIFO, single thread, init-length 1000
+
+In this table, four LIFO queues were compared which make 10^n times of enqueue+dequeue.
+The init-length of unsafe-fifo and safe-fifo were set to default (1000).
+All of these result were ran in single thread.
+
+| 10^n | unsafe-lifo | safe-lifo | cl-speedy-lifo | list  |
+| :--: | :---------: | :-------: | :------------: | :---: |
+|  3   |    0.000    |   0.000   |     0.000      | 0.000 |
+|  4   |    0.000    |   0.004   |     0.000      | 0.000 |
+|  5   |    0.008    |   0.060   |     0.000      | 0.000 |
+|  6   |    0.064    |   0.616   |     0.012      | 0.012 |
+|  7   |    0.660    |   6.208   |     0.148      | 0.128 |
+|  8   |    7.008    |  63.068   |     1.468      | 1.676 |
+
+
+### FIFO, single thread, init-length changed
+
+In this table, a fixed 10^8 times of enqueue+dequeue were made, but the init-length were changed from 10^3 to 10^8. 
+Note that cl-speedy-lifo and list-queue are not applicable here.
+
+| 10^n | unsafe-fifo | safe-fifo | cl-speedy-fifo | list-queue |
+| :--: | :---------: | :-------: | :------------: | :--------: |
+|  3   |    6.192    |  62.124   |       -        |     -      |
+|  4   |    6.248    |  62.440   |       -        |     -      |
+|  5   |    6.780    |  61.828   |       -        |     -      |
+|  6   |    6.376    |  61.484   |       -        |     -      |
+|  7   |    6.400    |  61.352   |       -        |     -      |
+|  8   |    6.348    |  62.008   |       -        |     -      |
+
+
+### LIFO, single-thread, init-length changed
+
+In this table, a fixed 10^8 times of enqueue+dequeue were made, but the init-length were changed from 10^3 to 10^8. 
+Note that cl-speedy-lifo and list-queue are not applicable here.
+
+| 10^n | unsafe-lifo | safe-lifo | cl-speedy-lifo | list-queue |
+| :--: | :---------: | :-------: | :------------: | :--------: |
+|  3   |    6.184    |  60.720   |       -        |     -      |
+|  4   |    6.348    |  62.756   |       -        |     -      |
+|  5   |    6.296    |  64.032   |       -        |     -      |
+|  6   |    6.272    |  62.348   |       -        |     -      |
+|  7   |    6.704    |  64.636   |       -        |     -      |
+|  8   |    6.592    |  63.356   |       -        |     -      |
+
+
+### FIFO,  multi-threads
+
+In this table, a fixed 10^8 times of enqueue+dequeue were made. 
+Note that for each case, a number of threads were spawned to execute enqueue, and the same number of threads were spawned to execute dequeue. For example, in the 2nd row, there were 2 threads which executed enqueue as well as 2 threads which executed dequeue.
+`time` macro was no longer suitable in this situation, instead of that, a loop was used and inspected that if all the en/dequeue operations were done in the loop in the main thread, and thus the time interval could be found out.
+
+
+| threads num | safe-fifo | safe-lifo |
+| :---------: | :-------: | :-------: |
+|      1      |  119.198  |  126.755  |
+|      2      |  148.590  |  150.945  |
+|      3      |  120.081  |  133.014  |
+|      4      |  128.051  |  132.243  |
+
+## Conclusion
+
+The four queues, unsafe-fifo, unsafe-lifo, safe-fifo and safe-lifo are developed to deal with unbound queues and they are implemented with arrays.
+
+The unsafe versions are slightly slower than their bounded versions, but the safe versions are much slower (but not absolutely slow) than their bounded versions. The reason is apparent, the semantics of queue (either fifo or lifo) are single threaded, which can not accelerate in threads, and the locks in the safe versions defeated their performances.
+
+However, the safe version are suitable for the environments where data may be modified by other threads. If single thread accessing can be guaranteed and the queue might be unbound, use the unsafe versions first.
