@@ -6,6 +6,14 @@
 
 (in-package :cl-fast-queues-tests)
 
+(defun nshuffle (sequence)
+  "Knuth shuffle. https://rosettacode.org/wiki/Knuth_shuffle#Common_Lisp"
+  (loop for i from (length sequence) downto 2
+        do (rotatef (elt sequence (random i))
+                    (elt sequence (1- i))))
+  sequence)
+
+
 (define-test cl-fast-queues-tests)
 
 (define-test unsafe-queues :parent cl-fast-queues-tests)
@@ -140,6 +148,32 @@
         (is = item (dequeue queue)))
       (is eq cl-speedy-queue:*underflow-flag* (dequeue queue)))))
 
+(define-test unsafe-fifo-queue-find :parent unsafe-fifo
+  (dotimes (i *loop-test-times*)
+    (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
+          (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
+          (queue (make-unsafe-fifo :init-length (1+ (random 10)))))
+      (dolist (item find-items) ; find in empty queue
+        (false (queue-find item queue)))
+      (dolist (item (append find-items other-items)) ; enqueue
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item other-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item find-items) ; dequeue
+        (dequeue queue))
+      (dolist (item find-items) ; find dequeued items
+        (false (queue-find item queue)))
+      (dolist (item other-items) ; empty queue
+        (dequeue queue))
+      (dolist (item (nshuffle (append find-items other-items))) ; enqueue random list
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue))))))
+
+
+
 
 ;;; ------- unsafe-lifo -------
 
@@ -253,6 +287,29 @@
         (is = item (dequeue queue)))
       (is eq cl-speedy-lifo::*underflow-flag* (dequeue queue)))))
 
+(define-test unsafe-lifo-queue-find :parent unsafe-lifo
+  (dotimes (i *loop-test-times*)
+    (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
+          (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
+          (queue (make-unsafe-lifo :init-length (1+ (random 10)))))
+      (dolist (item find-items) ; find in empty queue
+        (false (queue-find item queue)))
+      (dolist (item (append other-items find-items)) ; enqueue, `find-items' euqueue last
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+                 (true (queue-find item queue)))
+      (dolist (item other-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item find-items) ; dequeue
+        (dequeue queue))
+      (dolist (item find-items) ; find dequeued items
+        (false (queue-find item queue)))
+      (dolist (item other-items) ; empty queue
+        (dequeue queue))
+      (dolist (item (nshuffle (append find-items other-items))) ; enqueue random list
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue))))))
 
 ;;;; -----------------------------------------------------------
 ;;;; safe-queues.lisp
@@ -369,6 +426,30 @@
         (is = item (dequeue queue)))
       (is eq cl-speedy-queue:*underflow-flag* (dequeue queue)))))
 
+(define-test safe-fifo-queue-find :parent safe-fifo
+  (dotimes (i *loop-test-times*)
+    (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
+          (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
+          (queue (make-safe-fifo :init-length (1+ (random 10)))))
+      (dolist (item find-items) ; find in empty queue
+        (false (queue-find item queue)))
+      (dolist (item (append find-items other-items)) ; enqueue
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item other-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item find-items) ; dequeue
+        (dequeue queue))
+      (dolist (item find-items) ; find dequeued items
+        (false (queue-find item queue)))
+      (dolist (item other-items) ; empty queue
+        (dequeue queue))
+      (dolist (item (nshuffle (append find-items other-items))) ; enqueue random list
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue))))))
+
 
 ;;; ------- safe-lifo -------
 
@@ -482,6 +563,29 @@
         (is = item (dequeue queue)))
       (is eq cl-speedy-lifo::*underflow-flag* (dequeue queue)))))
 
+(define-test safe-lifo-queue-find :parent safe-lifo
+  (dotimes (i *loop-test-times*)
+    (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
+          (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
+          (queue (make-safe-lifo :init-length (1+ (random 10)))))
+      (dolist (item find-items) ; find in empty queue
+        (false (queue-find item queue)))
+      (dolist (item (append other-items find-items)) ; enqueue, `find-items' euqueue last
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item other-items) ; find queue
+        (true (queue-find item queue)))
+      (dolist (item find-items) ; dequeue
+        (dequeue queue))
+      (dolist (item find-items) ; find dequeued items
+        (false (queue-find item queue)))
+      (dolist (item other-items) ; empty queue
+        (dequeue queue))
+      (dolist (item (nshuffle (append find-items other-items))) ; enqueue random list
+        (enqueue item queue))
+      (dolist (item find-items) ; find queue
+        (true (queue-find item queue))))))
 
 ;;; ------- tests in multi-threads ------
 
