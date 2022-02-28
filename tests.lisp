@@ -172,7 +172,16 @@
       (dolist (item find-items) ; find queue
         (true (queue-find item queue))))))
 
-
+(define-test unsafe-fifo-queue<->list :parent unsafe-fifo
+  (dotimes (i *loop-test-times*)
+    (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
+          (queue1 (make-unsafe-fifo :init-length (1+ (random 50))))
+          (queue2 nil))
+      (dolist (item items)
+        (enqueue item queue1))
+      (is equal items (queue-to-list queue1))
+      (setf queue2 (list-to-queue items :unsafe-fifo))
+      (is equal items (queue-to-list queue2)))))
 
 
 ;;; ------- unsafe-lifo -------
@@ -310,6 +319,18 @@
         (enqueue item queue))
       (dolist (item find-items) ; find queue
         (true (queue-find item queue))))))
+
+(define-test unsafe-lifo-queue<->list :parent unsafe-lifo
+  (dotimes (i *loop-test-times*)
+    (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
+          (queue1 (make-unsafe-lifo :init-length (1+ (random 50))))
+          (queue2 nil))
+      (dolist (item items)
+        (enqueue item queue1))
+      (is equal (reverse items) (queue-to-list queue1))
+      (setf queue2 (list-to-queue items :unsafe-lifo))
+      (is equal (reverse items) (queue-to-list queue2)))))
+
 
 ;;;; -----------------------------------------------------------
 ;;;; safe-queues.lisp
@@ -450,6 +471,17 @@
       (dolist (item find-items) ; find queue
         (true (queue-find item queue))))))
 
+(define-test safe-fifo-queue<->list :parent safe-fifo
+  (dotimes (i *loop-test-times*)
+    (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
+          (queue1 (make-safe-fifo :init-length (1+ (random 50))))
+          (queue2 nil))
+      (dolist (item items)
+        (enqueue item queue1))
+      (is equal items (queue-to-list queue1))
+      (setf queue2 (list-to-queue items :safe-fifo))
+      (is equal items (queue-to-list queue2)))))
+
 
 ;;; ------- safe-lifo -------
 
@@ -586,6 +618,17 @@
         (enqueue item queue))
       (dolist (item find-items) ; find queue
         (true (queue-find item queue))))))
+
+(define-test safe-lifo-queue<->list :parent safe-lifo
+  (dotimes (i *loop-test-times*)
+    (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
+          (queue1 (make-safe-lifo :init-length (1+ (random 50))))
+          (queue2 nil))
+      (dolist (item items)
+        (enqueue item queue1))
+      (is equal (reverse items) (queue-to-list queue1))
+      (setf queue2 (list-to-queue items :safe-lifo))
+      (is equal (reverse items) (queue-to-list queue2)))))
 
 ;;; ------- tests in multi-threads ------
 
