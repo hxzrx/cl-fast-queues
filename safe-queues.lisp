@@ -74,10 +74,10 @@
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
-                     (progn(loop while (%unsafe-queue-empty-p queue)
-                                 do (progn (bt:thread-yield)
-                                           (bt:condition-wait cvar lock)))
-                           (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
+                     (progn (loop while (%unsafe-queue-empty-p queue)
+                                  do (progn (bt:thread-yield)
+                                            (bt:condition-wait cvar lock)))
+                            (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
                      (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
                        (null (%singularp (%list-queue-contents queue-list))))
