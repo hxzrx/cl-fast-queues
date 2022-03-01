@@ -1,11 +1,13 @@
 (in-package :cl-fast-queues)
 
+
 ;;; safe unbound fifo queue
 
 (defstruct (safe-fast-fifo (:conc-name safe-fifo-))
   (push-queue nil :type simple-vector)
   (pop-queue  nil :type simple-vector)
   (queue-list nil :type list)
+  (waitp t)
   (lock (bt:make-lock "SAFE-FIFO-LOCK"))
   (cvar (bt:make-condition-variable :name "SAFE-FIFO-CVAR")))
 
@@ -13,14 +15,15 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (safe-fast-fifo-p queue))
 
-(defun make-safe-fifo (&optional (init-length 1000)
+(defun make-safe-fifo (&key (init-length 1000) (waitp t)
                        &aux (queue (cl-speedy-queue:make-queue init-length))
                          (queue-list (%make-list-queue)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
   (make-safe-fast-fifo :queue-list (%list-queue-enqueue queue queue-list)
                        :push-queue queue
-                       :pop-queue queue))
+                       :pop-queue queue
+                       :waitp waitp))
 
 (defmethod queue-count ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -33,7 +36,7 @@
 
 (defmethod enqueue (object (queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (push-queue queue-list push-queue-len lock cvar) queue
+  (with-slots (push-queue queue-list push-queue-len waitp lock cvar) queue
     (declare (single-float *enlarge-size*))
     (declare (fixnum push-queue-len))
     (bt:with-lock-held (lock)
@@ -45,16 +48,16 @@
           (%list-queue-enqueue new-queue queue-list)
           (setf push-queue new-queue)))
       (prog1 (cl-speedy-queue:enqueue object push-queue)
-        (bt:condition-notify cvar)))))
+        (when waitp (bt:condition-notify cvar))))))
 
 (defmethod queue-peek ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (pop-queue) queue
     (cl-speedy-queue:queue-peek pop-queue)))
 
-(defmethod dequeue ((queue safe-fast-fifo) &key (keep-in-queue-p t) (waitp nil))
+(defmethod dequeue ((queue safe-fast-fifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (if waitp
+  (if (safe-fifo-waitp queue)
       (with-slots (pop-queue queue-list lock cvar) queue
         (bt:with-lock-held (lock)
           (prog1 (if (queue-empty-p queue)
@@ -92,12 +95,12 @@ and the order of the returned list is the same as enqueue order. (so that they w
   (mapcan #'cl-speedy-queue:queue-to-list
           (%list-queue-contents (safe-fifo-queue-list queue))))
 
-(defmethod list-to-queue (list (queue-type (eql :safe-fifo)))
+(defmethod list-to-queue (list (queue-type (eql :safe-fifo)) &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
   (let* ((len (length list))
-         (queue (make-safe-fifo len)))
+         (queue (make-safe-fifo :init-length len :waitp waitp)))
     (dolist (item list)
       (enqueue item queue))
     queue))
@@ -108,6 +111,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
 (defstruct (safe-fast-lifo (:conc-name safe-lifo-))
   (cur-queue nil :type simple-vector)
   (queue-list nil :type list)
+  (waitp t)
   (lock (bt:make-lock "SAFE-LIFO-LOCK"))
   (cvar (bt:make-condition-variable :name "SAFE-LIFO-CVAR")))
 
@@ -115,12 +119,13 @@ and the order of the returned list is the same as enqueue order. (so that they w
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (safe-fast-lifo-p queue))
 
-(defun make-safe-lifo (&optional (init-length 1000)
+(defun make-safe-lifo (&key (init-length 1000) (waitp t)
                        &aux (queue (cl-speedy-lifo:make-queue init-length)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
   (make-safe-fast-lifo :queue-list (list queue)
-                       :cur-queue queue))
+                       :cur-queue queue
+                       :waitp waitp))
 
 (defmethod queue-count ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -134,7 +139,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
 
 (defmethod enqueue (object (queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list lock cvar) queue
+  (with-slots (cur-queue queue-list waitp lock cvar) queue
     (declare (single-float *enlarge-size*))
     (bt:with-lock-held (lock)
       (when (cl-speedy-lifo:queue-full-p cur-queue)
@@ -144,16 +149,16 @@ and the order of the returned list is the same as enqueue order. (so that they w
           (push new-queue queue-list)
           (setf cur-queue new-queue)))
       (prog1 (cl-speedy-lifo:enqueue object cur-queue)
-        (bt:condition-notify cvar)))))
+        (when waitp (bt:condition-notify cvar))))))
 
 (defmethod queue-peek ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (cur-queue) queue
     (cl-speedy-lifo:queue-peek cur-queue)))
 
-(defmethod dequeue ((queue safe-fast-lifo) &key (keep-in-queue-p t) (waitp nil))
+(defmethod dequeue ((queue safe-fast-lifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (if waitp
+  (if (safe-lifo-waitp queue)
       (with-slots (cur-queue queue-list cur-queue-len lock cvar) queue
         (declare (list queue-list))
         (bt:with-lock-held (lock)
@@ -192,12 +197,12 @@ and the order of the returned list is the reverse of the enqueue order (so that 
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (mapcan #'cl-speedy-lifo:queue-to-list (safe-lifo-queue-list queue)))
 
-(defmethod list-to-queue (list (queue-type (eql :safe-lifo)))
+(defmethod list-to-queue (list (queue-type (eql :safe-lifo)) &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
   (let* ((len (length list))
-         (queue (make-safe-lifo len)))
+         (queue (make-safe-lifo :init-length len :waitp waitp)))
     (dolist (item list)
       (enqueue item queue))
     queue))
