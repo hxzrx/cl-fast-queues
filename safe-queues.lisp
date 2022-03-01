@@ -27,10 +27,18 @@
 
 (defmethod queue-count ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (the fixnum (apply #'+ (mapcar #'cl-speedy-queue:queue-count
-                                 (%list-queue-contents (safe-fifo-queue-list queue))))))
+  (bt:with-lock-held ((safe-fifo-lock queue))
+    (apply #'+ (mapcar #'cl-speedy-queue:queue-count
+                       (%list-queue-contents (safe-fifo-queue-list queue))))))
+
 
 (defmethod queue-empty-p ((queue safe-fast-fifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (bt:with-lock-held ((safe-fifo-lock queue))
+    (cl-speedy-queue:queue-empty-p (safe-fifo-pop-queue queue))))
+
+(defmethod %unsafe-queue-empty-p ((queue safe-fast-fifo))
+  "This method should only be used in a function's lock-held's body."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-queue:queue-empty-p (safe-fifo-pop-queue queue)))
 
@@ -48,26 +56,28 @@
           (%list-queue-enqueue new-queue queue-list)
           (setf push-queue new-queue)))
       (prog1 (cl-speedy-queue:enqueue object push-queue)
-        (when waitp (bt:condition-notify cvar))))))
+        (when waitp
+          (bt:condition-notify cvar))))))
 
 (defmethod queue-peek ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (pop-queue) queue
-    (cl-speedy-queue:queue-peek pop-queue)))
+  (bt:with-lock-held ((safe-fifo-lock queue))
+    (with-slots (pop-queue) queue
+      (cl-speedy-queue:queue-peek pop-queue))))
 
 (defmethod dequeue ((queue safe-fast-fifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (if (safe-fifo-waitp queue)
       (with-slots (pop-queue queue-list lock cvar) queue
         (bt:with-lock-held (lock)
-          (prog1 (if (queue-empty-p queue)
+          (prog1 (if (%unsafe-queue-empty-p queue)
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
-                     (progn (loop while (queue-empty-p queue)
-                                  do (progn (bt:thread-yield)
-                                            (bt:condition-wait cvar lock)))
-                            (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
+                     (progn(loop while (%unsafe-queue-empty-p queue)
+                                 do (progn (bt:thread-yield)
+                                           (bt:condition-wait cvar lock)))
+                           (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
                      (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
             (when (and (cl-speedy-queue:queue-empty-p pop-queue)
                        (null (%singularp (%list-queue-contents queue-list))))
@@ -85,15 +95,17 @@
   "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (some #'(lambda (sfifo) (cl-speedy-queue:queue-find item sfifo :key key :test test))
-        (%list-queue-contents (safe-fifo-queue-list queue))))
+  (bt:with-lock-held ((safe-fifo-lock queue))
+    (some #'(lambda (sfifo) (cl-speedy-queue:queue-find item sfifo :key key :test test))
+          (%list-queue-contents (safe-fifo-queue-list queue)))))
 
 (defmethod queue-to-list ((queue safe-fast-fifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the same as enqueue order. (so that they will have the same dequeue order)"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (mapcan #'cl-speedy-queue:queue-to-list
-          (%list-queue-contents (safe-fifo-queue-list queue))))
+  (bt:with-lock-held ((safe-fifo-lock queue))
+    (mapcan #'cl-speedy-queue:queue-to-list
+            (%list-queue-contents (safe-fifo-queue-list queue)))))
 
 (defmethod list-to-queue (list (queue-type (eql :safe-fifo)) &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
@@ -129,10 +141,17 @@ and the order of the returned list is the same as enqueue order. (so that they w
 
 (defmethod queue-count ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (apply #'+ (mapcar #'cl-speedy-lifo:queue-count
-                     (safe-lifo-queue-list queue))))
+  (bt:with-lock-held ((safe-lifo-lock queue))
+    (apply #'+ (mapcar #'cl-speedy-lifo:queue-count
+                       (safe-lifo-queue-list queue)))))
 
 (defmethod queue-empty-p ((queue safe-fast-lifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (bt:with-lock-held ((safe-lifo-lock queue))
+    (cl-speedy-lifo:queue-empty-p
+     (car (safe-lifo-queue-list queue)))))
+
+(defmethod %unsafe-queue-empty-p ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-lifo:queue-empty-p
    (car (safe-lifo-queue-list queue))))
@@ -153,8 +172,9 @@ and the order of the returned list is the same as enqueue order. (so that they w
 
 (defmethod queue-peek ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue) queue
-    (cl-speedy-lifo:queue-peek cur-queue)))
+  (bt:with-lock-held ((safe-lifo-lock queue))
+    (with-slots (cur-queue) queue
+      (cl-speedy-lifo:queue-peek cur-queue))))
 
 (defmethod dequeue ((queue safe-fast-lifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -162,11 +182,11 @@ and the order of the returned list is the same as enqueue order. (so that they w
       (with-slots (cur-queue queue-list cur-queue-len lock cvar) queue
         (declare (list queue-list))
         (bt:with-lock-held (lock)
-          (prog1 (if (queue-empty-p queue)
+          (prog1 (if (%unsafe-queue-empty-p queue)
                      ;; a loop was suggested in a bordeaux-threads GitHub issue conversation.
                      ;; https://github.com/sionescu/bordeaux-threads/issues/29
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
-                     (progn (loop while (queue-empty-p queue)
+                     (progn (loop while (%unsafe-queue-empty-p queue)
                                   do (progn (bt:thread-yield)
                                             (bt:condition-wait cvar lock)))
                             (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
@@ -188,14 +208,16 @@ and the order of the returned list is the same as enqueue order. (so that they w
   "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (some #'(lambda (slifo) (cl-speedy-lifo:queue-find item slifo :key key :test test))
-        (safe-lifo-queue-list queue)))
+  (bt:with-lock-held ((safe-lifo-lock queue))
+    (some #'(lambda (slifo) (cl-speedy-lifo:queue-find item slifo :key key :test test))
+          (safe-lifo-queue-list queue))))
 
 (defmethod queue-to-list ((queue safe-fast-lifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (mapcan #'cl-speedy-lifo:queue-to-list (safe-lifo-queue-list queue)))
+  (bt:with-lock-held ((safe-lifo-lock queue))
+    (mapcan #'cl-speedy-lifo:queue-to-list (safe-lifo-queue-list queue))))
 
 (defmethod list-to-queue (list (queue-type (eql :safe-lifo)) &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
