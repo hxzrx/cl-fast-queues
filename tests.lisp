@@ -34,8 +34,8 @@
 
 (define-test make-unsafe-fifo :parent unsafe-fifo
   (finish (make-unsafe-fifo))
-  (finish (make-unsafe-fifo 1))
-  (fail (make-unsafe-fifo 0)))
+  (finish (make-unsafe-fifo :init-length 1))
+  (fail (make-unsafe-fifo :init-length 0)))
 
 (define-test %singularp :parent cl-fast-queues-tests
   (is eql t (cl-fast-queues::%singularp nil))
@@ -47,7 +47,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -59,7 +59,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -71,7 +71,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -83,7 +83,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -95,7 +95,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100)))
       (dotimes (j count)
         (enqueue nil queue)
@@ -111,7 +111,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100)))
       (dotimes (j count)
         (let ((item (random 10)))
@@ -121,7 +121,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
           (count (random 100))
           (first-item (elt '(0 nil "" :xxx 888) (random 5))))
       (is-values (queue-peek queue) (eql nil) (eql nil))
@@ -136,7 +136,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-unsafe-fifo (1+ (random 10))))
+    (let* ((queue (make-unsafe-fifo :init-length (1+ (random 10))))
            (items (loop for i below (1+ (random 100)) collect (random 100)))
            #+:ignore(items-rev (reverse items)))
       (is eq cl-speedy-queue:*underflow-flag* (dequeue queue))
@@ -150,7 +150,7 @@
   (dotimes (i *loop-test-times*)
     (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
           (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
-          (queue (make-unsafe-fifo (1+ (random 10)))))
+          (queue (make-unsafe-fifo :init-length (1+ (random 10)))))
       (dolist (item find-items) ; find in empty queue
         (false (queue-find item queue)))
       (dolist (item (append find-items other-items)) ; enqueue
@@ -173,7 +173,7 @@
 (define-test unsafe-fifo-queue<->list :parent unsafe-fifo
   (dotimes (i *loop-test-times*)
     (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
-          (queue1 (make-unsafe-fifo (1+ (random 50))))
+          (queue1 (make-unsafe-fifo :init-length (1+ (random 50))))
           (queue2 nil))
       (dolist (item items)
         (enqueue item queue1))
@@ -186,14 +186,14 @@
 
 (define-test make-unsafe-lifo :parent unsafe-lifo
   (finish (make-unsafe-lifo))
-  (finish (make-unsafe-lifo 1))
-  (fail (make-unsafe-lifo 0)))
+  (finish (make-unsafe-lifo :init-length 1))
+  (fail (make-unsafe-lifo :init-length 0)))
 
 (define-test unsafe-lifo-queue-count-0 :parent unsafe-lifo
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -205,7 +205,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -217,7 +217,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -229,7 +229,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -241,7 +241,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100)))
       (dotimes (j count)
         (enqueue nil queue)
@@ -257,7 +257,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100)))
       (dotimes (j count)
         (let ((item (random 10)))
@@ -267,7 +267,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
           (count (random 100))
           (first-item (elt '(0 nil "" :xxx 888) (random 5))))
       (is-values (queue-peek queue) (eql nil) (eql nil))
@@ -282,7 +282,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-unsafe-lifo (1+ (random 10))))
+    (let* ((queue (make-unsafe-lifo :init-length (1+ (random 10))))
            (items (loop for i below (1+ (random 100)) collect (random 100)))
            (items-rev (reverse items)))
       (is eq cl-speedy-lifo::*underflow-flag* (dequeue queue))
@@ -296,7 +296,7 @@
   (dotimes (i *loop-test-times*)
     (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
           (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
-          (queue (make-unsafe-lifo (1+ (random 10)))))
+          (queue (make-unsafe-lifo :init-length (1+ (random 10)))))
       (dolist (item find-items) ; find in empty queue
         (false (queue-find item queue)))
       (dolist (item (append other-items find-items)) ; enqueue, `find-items' euqueue last
@@ -319,7 +319,7 @@
 (define-test unsafe-lifo-queue<->list :parent unsafe-lifo
   (dotimes (i *loop-test-times*)
     (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
-          (queue1 (make-unsafe-lifo (1+ (random 50))))
+          (queue1 (make-unsafe-lifo :init-length (1+ (random 50))))
           (queue2 nil))
       (dolist (item items)
         (enqueue item queue1))
@@ -335,14 +335,17 @@
 
 (define-test make-safe-fifo :parent safe-fifo
   (finish (make-safe-fifo))
-  (finish (make-safe-fifo 1))
-  (fail (make-safe-fifo 0)))
+  (finish (make-safe-fifo :init-length 1))
+  (finish (make-safe-fifo :waitp t))
+  (finish (make-safe-fifo :init-length 1 :waitp t))
+  (finish (make-safe-fifo :init-length 1 :waitp nil))
+  (fail (make-safe-fifo :init-length 0)))
 
 (define-test safe-fifo-queue-count-0 :parent safe-fifo
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -354,7 +357,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -366,7 +369,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -378,7 +381,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -390,7 +393,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (dotimes (j count)
         (enqueue nil queue)
@@ -406,7 +409,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (dotimes (j count)
         (let ((item (random 10)))
@@ -416,7 +419,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100))
           (first-item (elt '(0 nil "" :xxx 888) (random 5))))
       (is-values (queue-peek queue) (eql nil) (eql nil))
@@ -431,7 +434,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo (1+ (random 10))))
+    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
            (items (loop for i below (1+ (random 100)) collect (random 100)))
            #+:ignore(items-rev (reverse items)))
       (is eq cl-speedy-queue:*underflow-flag* (dequeue queue))
@@ -445,7 +448,7 @@
   (dotimes (i *loop-test-times*)
     (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
           (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
-          (queue (make-safe-fifo (1+ (random 10)))))
+          (queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil)))
       (dolist (item find-items) ; find in empty queue
         (false (queue-find item queue)))
       (dolist (item (append find-items other-items)) ; enqueue
@@ -468,7 +471,7 @@
 (define-test safe-fifo-queue<->list :parent safe-fifo
   (dotimes (i *loop-test-times*)
     (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
-          (queue1 (make-safe-fifo (1+ (random 50))))
+          (queue1 (make-safe-fifo :init-length (1+ (random 50)) :waitp nil))
           (queue2 nil))
       (dolist (item items)
         (enqueue item queue1))
@@ -480,15 +483,19 @@
 ;;; ------- safe-lifo -------
 
 (define-test make-safe-lifo :parent safe-lifo
-  (finish (make-unsafe-lifo))
-  (finish (make-unsafe-lifo 1))
-  (fail (make-unsafe-lifo 0)))
+  (finish (make-safe-lifo))
+  (finish (make-safe-lifo :init-length 1))
+  (finish (make-safe-lifo :waitp t))
+  (finish (make-safe-lifo :init-length 1 :waitp t))
+  (finish (make-safe-lifo :init-length 1 :waitp nil))
+  (fail (make-safe-lifo :init-length 0)))
+
 
 (define-test safe-lifo-queue-count-0 :parent safe-lifo
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -500,7 +507,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -512,7 +519,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -524,7 +531,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (is = 0 (queue-count queue))
       (is eq t (queue-empty-p queue))
@@ -536,7 +543,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (dotimes (j count)
         (enqueue nil queue)
@@ -552,7 +559,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100)))
       (dotimes (j count)
         (let ((item (random 10)))
@@ -562,11 +569,12 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
           (count (random 100))
           (first-item (elt '(0 nil "" :xxx 888) (random 5))))
       (is-values (queue-peek queue) (eql nil) (eql nil))
       (enqueue first-item queue)
+      (format t "enqueue finished.~%")
       (is equal first-item (queue-peek queue))
       (dotimes (j count)
         (let ((item (random 10)))
@@ -577,7 +585,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo (1+ (random 10))))
+    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
            (items (loop for i below (1+ (random 100)) collect (random 100)))
            (items-rev (reverse items)))
       (is eq cl-speedy-lifo::*underflow-flag* (dequeue queue))
@@ -591,7 +599,7 @@
   (dotimes (i *loop-test-times*)
     (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
           (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
-          (queue (make-safe-lifo (1+ (random 10)))))
+          (queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil)))
       (dolist (item find-items) ; find in empty queue
         (false (queue-find item queue)))
       (dolist (item (append other-items find-items)) ; enqueue, `find-items' euqueue last
@@ -614,7 +622,7 @@
 (define-test safe-lifo-queue<->list :parent safe-lifo
   (dotimes (i *loop-test-times*)
     (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
-          (queue1 (make-safe-lifo (1+ (random 50))))
+          (queue1 (make-safe-lifo :init-length (1+ (random 50)) :waitp nil))
           (queue2 nil))
       (dolist (item items)
         (enqueue item queue1))
@@ -622,14 +630,17 @@
       (setf queue2 (list-to-queue items :safe-lifo))
       (is equal (reverse items) (queue-to-list queue2)))))
 
+
 ;;; ------- tests in multi-threads ------
+
+;;; safe-fifo, threads test
 
 (define-test safe-fifo-enqueue-threads :parent safe-fifo
   "enqueue in threads, dequeue in the main thread"
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo (1+ (random 10))))
+    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
           (items (loop for i below (random 100) collect (random 100)))
           (total 0))
       (dolist (item items)
@@ -646,7 +657,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo (1+ (random 10))))
+    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (apply #'+ items)))
       (dolist (item items)
@@ -657,7 +668,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp nil)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
       (true (queue-empty-p queue)))))
 
 (define-test safe-fifo-dequeue-threads-wait :parent safe-fifo
@@ -665,7 +676,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo (1+ (random 10))))
+    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (apply #'+ items)))
       (dolist (item items)
@@ -676,7 +687,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
       (true (queue-empty-p queue)))))
 
 (define-test safe-fifo-dequeue-threads-wait2 :parent safe-fifo
@@ -685,7 +696,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo (1+ (random 10))))
+    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total 0))
       (bt:make-thread
@@ -694,7 +705,7 @@
                  (apply #'+
                         (loop for j below (length items)
                               collect (bt:join-thread
-                                       (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t)))))))))
+                                       (bt:make-thread #'(lambda () (dequeue queue t)))))))))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (enqueue item queue))))
@@ -707,15 +718,15 @@
 (define-test safe-fifo-dequeue-threads-wait3 :parent safe-fifo
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo (1+ (random 10))))
+    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (list 0)))
       (bt:make-thread
        #'(lambda ()
            (dolist (item items)
-           (sb-ext:atomic-incf (car total)
-               (bt:join-thread
-                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t))))))))
+             (sb-ext:atomic-incf (car total)
+                 (bt:join-thread
+                  (bt:make-thread #'(lambda () (dequeue queue t))))))))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (enqueue item queue))))
@@ -731,13 +742,13 @@
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
     (let* ((len (1+ (random 10)))
-           (queue (make-safe-fifo len))
+           (queue (make-safe-fifo :init-length len :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (list 0)))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (sb-ext:atomic-incf (car total)
-                                (dequeue queue :keep-in-queue-p t :waitp t)))))
+                                (dequeue queue t)))))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (enqueue item queue))))
@@ -748,14 +759,14 @@
       (true (queue-empty-p queue)))))
 
 
-;;; safe-lifo
+;;; safe-lifo, threads test
 
 (define-test safe-lifo-enqueue-threads :parent safe-lifo
   "enqueue in threads, dequeue in the main thread"
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo (1+ (random 10))))
+    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
           (items (loop for i below (random 100) collect (random 100)))
           (total 0))
       (dolist (item items)
@@ -772,7 +783,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo (1+ (random 10))))
+    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
            (items (loop for i below (random 100) collect (random 100)))
            (total (apply #'+ items)))
       (dolist (item items)
@@ -783,7 +794,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp nil)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
       (true (queue-empty-p queue)))))
 
 (define-test safe-lifo-dequeue-threads-wait :parent safe-lifo
@@ -791,7 +802,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo (1+ (random 10))))
+    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (apply #'+ items)))
       (dolist (item items)
@@ -802,7 +813,7 @@
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t)))))))
+                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
       (true (queue-empty-p queue)))))
 
 #+sbcl
@@ -811,13 +822,13 @@
   ;; stil failed in several cases
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo (1+ (random 10))))
+    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (list 0)))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (sb-ext:atomic-incf (car total)
-                                (dequeue queue :keep-in-queue-p t :waitp t))
+                                (dequeue queue t))
                             :name "dequeue thread")))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
@@ -825,7 +836,7 @@
                         :name "enqueue thread"))
       (sleep 0.1)
       (is = (car total) (apply #'+ items))
-      #+:ignore(true (queue-empty-p queue)))))
+      (true (queue-empty-p queue)))))
 
 (defparameter *dequeue-list* (list))
 (defparameter *enqueue-list* (list))
@@ -834,14 +845,14 @@
   "dequeue with waitp true in threads, then enqueue in threads"
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo (1+ (random 5))))
+    (let* ((queue (make-safe-lifo :init-length (1+ (random 5)) :waitp t))
            (items (loop for i below (random 20) collect (random 10)))
            (items-sum (apply #'+ items)))
       (setf *dequeue-list* (list))
       (setf *enqueue-list* (list))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
-                            (sb-ext:atomic-push (dequeue queue :keep-in-queue-p nil :waitp t)
+                            (sb-ext:atomic-push (dequeue queue nil)
                                                 *dequeue-list*))))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
@@ -853,9 +864,9 @@
       ;;(when (not (= items-sum (apply #'+ *dequeue-list*)))
       ;;(format t "items: ~d~%enque: ~d~%deque: ~d~%~%" items *enqueue-list* *dequeue-list*)
       #+:ignore(unless (and (every #'integerp *dequeue-list*)
-                   (every #'integerp *enqueue-list*))
-        (sleep 0.2)
-        (format t "enque again: ~d~%deque again: ~d~%" *enqueue-list* *dequeue-list*))
+                            (every #'integerp *enqueue-list*))
+                 (sleep 0.2)
+                 (format t "enque again: ~d~%deque again: ~d~%" *enqueue-list* *dequeue-list*))
       (true (queue-empty-p queue))
       )))
 
@@ -863,15 +874,15 @@
 (define-test safe-lifo-dequeue-threads-wait3 :parent safe-lifo
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo (1+ (random 10))))
+    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (list 0)))
       (bt:make-thread
        #'(lambda ()
            (dolist (item items)
-           (sb-ext:atomic-incf (car total)
-               (bt:join-thread
-                (bt:make-thread #'(lambda () (dequeue queue :keep-in-queue-p t :waitp t))))))))
+             (sb-ext:atomic-incf (car total)
+                 (bt:join-thread
+                  (bt:make-thread #'(lambda () (dequeue queue t))))))))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (enqueue item queue))))
@@ -884,13 +895,13 @@
   "dequeue and atomic-incf in threads, enqueue in threads"
   #+sbcl (sb-ext:gc :full t)
   (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo (1+ (random 10))))
+    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
            (total (list 0)))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (sb-ext:atomic-incf (car total)
-                                (dequeue queue :keep-in-queue-p t :waitp t)))))
+                                (dequeue queue t)))))
       (dolist (item items)
         (bt:make-thread #'(lambda ()
                             (enqueue item queue))))
