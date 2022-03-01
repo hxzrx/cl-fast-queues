@@ -13,7 +13,7 @@
 ;;; ------- FIFO, Single thread, init-length 1000 -------
 
 (dolist (num *times*)
-  (format t "unsafe fifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "unsafe fifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-fifo)))
           (dotimes (i num)
@@ -31,7 +31,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "cl-speedy-queue, single thread: 10^~d times.~%" (log num 10))
+  (format t "cl-speedy-queue: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-speedy-queue:make-queue num)))
           (dotimes (i num)
@@ -40,7 +40,7 @@
             (cl-speedy-queue:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "list queue, single thread: 10^~d times.~%" (log num 10))
+  (format t "list queue: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues::%make-list-queue num)))
           (dotimes (i num)
@@ -52,7 +52,7 @@
 ;;; ------- LIFO, Single thread, init-length 1000 -------
 
 (dolist (num *times*)
-  (format t "unsafe lifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "unsafe lifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-lifo)))
           (dotimes (i num)
@@ -70,7 +70,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "cl-speedy-lifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "cl-speedy-lifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-speedy-lifo:make-queue num)))
           (dotimes (i num)
@@ -79,7 +79,7 @@
             (cl-speedy-lifo:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "list lifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "list lifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue nil))
           (dotimes (i num)
@@ -92,7 +92,7 @@
 
 ;; fifo
 (dolist (len *lengths*)
-  (format t "unsafe fifo, single thread, init-length: 10^~d.~%" (log len 10))
+  (format t "unsafe fifo, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-fifo len)))
           (dotimes (i *max-times*)
@@ -111,7 +111,7 @@
 
 ;; lifo
 (dolist (len *lengths*)
-  (format t "unsafe lifo, single thread, init-length: 10^~d.~%" (log len 10))
+  (format t "unsafe lifo, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-lifo len)))
           (dotimes (i *max-times*)
