@@ -1,5 +1,7 @@
 (ql:quickload :local-time)
-
+(ql:quickload :queues)
+(ql:quickload :queues.simple-cqueue)
+(ql:quickload :queues.simple-queue)
 (in-package :cl-fast-queues)
 
 
@@ -13,7 +15,7 @@
 ;;; ------- FIFO, Single thread, init-length 1000 -------
 
 (dolist (num *times*)
-  (format t "unsafe fifo: 10^~d times.~%" (log num 10))
+  (format t "~&unsafe fifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-fifo)))
           (dotimes (i num)
@@ -22,7 +24,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "safe fifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "~&safe fifo, single thread: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-fifo :waitp nil)))
           (dotimes (i num)
@@ -31,7 +33,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "safe fifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "~&safe fifo, single thread: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-fifo :waitp t)))
           (dotimes (i num)
@@ -39,8 +41,28 @@
           (dotimes (i num)
             (cl-fast-queues:dequeue queue)))))
 
+(dolist (num *times*) ; queues.simple-queue
+  (format t "~&queues.simple-queue, single thread: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (sb-ext:gc :full t)
+  (time (let ((queue (queues:make-queue :simple-queue)))
+          (dotimes (i num)
+            (queues:qpush queue i))
+          (dotimes (i num)
+            (queues:qpop queue)))))
+
+(dolist (num *times*) ; queues.simple-cqueue
+  (format t "~&queues.simple-cqueue, single thread: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (sb-ext:gc :full t)
+  (time (let ((queue (queues:make-queue :simple-cqueue)))
+          (dotimes (i num)
+            (queues:qpush queue i))
+          (dotimes (i num)
+            (queues:qpop queue)))))
+
 (dolist (num *times*)
-  (format t "cl-speedy-queue: 10^~d times.~%" (log num 10))
+  (format t "~&cl-speedy-queue: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-speedy-queue:make-queue num)))
           (dotimes (i num)
@@ -49,7 +71,7 @@
             (cl-speedy-queue:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "list queue: 10^~d times.~%" (log num 10))
+  (format t "~&list queue: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues::%make-list-queue num)))
           (dotimes (i num)
@@ -61,7 +83,7 @@
 ;;; ------- LIFO, Single thread, init-length 1000 -------
 
 (dolist (num *times*)
-  (format t "unsafe lifo: 10^~d times.~%" (log num 10))
+  (format t "~&unsafe lifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-lifo)))
           (dotimes (i num)
@@ -70,7 +92,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "safe lifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "~&safe lifo, single thread: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-lifo :waitp nil)))
           (dotimes (i num)
@@ -79,7 +101,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "safe lifo, single thread: 10^~d times.~%" (log num 10))
+  (format t "~&safe lifo, single thread: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-lifo :waitp t)))
           (dotimes (i num)
@@ -88,7 +110,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "cl-speedy-lifo: 10^~d times.~%" (log num 10))
+  (format t "~&cl-speedy-lifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-speedy-lifo:make-queue num)))
           (dotimes (i num)
@@ -97,7 +119,7 @@
             (cl-speedy-lifo:dequeue queue)))))
 
 (dolist (num *times*)
-  (format t "list lifo: 10^~d times.~%" (log num 10))
+  (format t "~&list lifo: 10^~d times.~%" (log num 10))
   (sb-ext:gc :full t)
   (time (let ((queue nil))
           (dotimes (i num)
@@ -110,7 +132,7 @@
 
 ;; unsafe fifo
 (dolist (len *lengths*)
-  (format t "unsafe fifo, init-length: 10^~d.~%" (log len 10))
+  (format t "~&unsafe fifo, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-fifo len)))
           (dotimes (i *max-times*)
@@ -120,7 +142,7 @@
 
 ;; safe fifo, waitp nil
 (dolist (len *lengths*)
-  (format t "safe fifo, single thread, init-length: 10^~d.~%" (log len 10))
+  (format t "~&safe fifo, single thread, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-fifo :init-length len :waitp nil)))
           (dotimes (i *max-times*)
@@ -130,7 +152,7 @@
 
 ;; safe fifo, waitp t
 (dolist (len *lengths*)
-  (format t "safe fifo, single thread, init-length: 10^~d.~%" (log len 10))
+  (format t "~&safe fifo, single thread, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-fifo :init-length len :waitp t)))
           (dotimes (i *max-times*)
@@ -141,7 +163,7 @@
 
 ;; lifo
 (dolist (len *lengths*)
-  (format t "unsafe lifo, init-length: 10^~d.~%" (log len 10))
+  (format t "~&unsafe lifo, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-unsafe-lifo :init-length len)))
           (dotimes (i *max-times*)
@@ -150,7 +172,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (len *lengths*)
-  (format t "safe lifo, single thread, init-length: 10^~d.~%" (log len 10))
+  (format t "~&safe lifo, single thread, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-lifo :init-length len :waitp nil)))
           (dotimes (i *max-times*)
@@ -159,7 +181,7 @@
             (cl-fast-queues:dequeue queue)))))
 
 (dolist (len *lengths*)
-  (format t "safe lifo, single thread, init-length: 10^~d.~%" (log len 10))
+  (format t "~&safe lifo, single thread, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
   (time (let ((queue (cl-fast-queues:make-safe-lifo :init-length len :waitp t)))
           (dotimes (i *max-times*)
@@ -266,6 +288,31 @@
       (bt:make-thread #'(lambda ()
                           (dolist (item lst)
                             (dequeue queue))
+                          (sb-ext:atomic-incf (car counter)))))
+    (loop while (/= (car counter) (* 2 t-num))
+          do (bt:thread-yield))
+    (setf ts2 (local-time:now))
+    (format t "~&Time cost: ~d.~%" (local-time:timestamp-difference ts2 ts1))))
+
+;; simple-cqueue
+(dolist (t-num *threads-num*)
+  (format t "~&safe lifo, threads: ~d, ~d times.~%" t-num *max-times*)
+  (sb-ext:gc :full t)
+  (let* ((num-each-thread (truncate (/ *max-times* t-num)))
+         (lst (make-list num-each-thread :initial-element 888))
+         (queue (queues:make-queue :simple-cqueue))
+         (counter (list 0))
+         (ts1 (local-time:now))
+         (ts2 nil))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (queues:qpush queue item))
+                          (sb-ext:atomic-incf (car counter)))))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (queues:qpop queue))
                           (sb-ext:atomic-incf (car counter)))))
     (loop while (/= (car counter) (* 2 t-num))
           do (bt:thread-yield))
