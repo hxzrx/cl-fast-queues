@@ -3,6 +3,8 @@ cl-fast-queues implements arrays based, optimized unbounded LIFO and FIFO queues
 
 Both FIFO and LIFO queues have unsafe and safe version, so the latter implements thread safe apis for basic operations of queues such as enqueue and dequeue, and he underground queues are made by cl-speedy-queue (something modified with vanilla cl-speedy-queue and it comes in speedy-queue.lisp together with this library) and cl-speedy-lifo according.
 
+This library has been intensively tested and has showed that it has a competitive performance.
+
 ## Date Types
 ### unsafe-fast-fifo
 The struct of unsafe-fifo, unsafe among threads.
@@ -142,21 +144,22 @@ All time units are in seconds.
 
 ### FIFO, single thread, init-length 1000, waitp nil
 
-In this table, four FIFO queues were compared which make 10^n times of enqueue+dequeue.
+In this table, several FIFO queues were compared which make 10^n times of enqueue+dequeue.
 The init-length of unsafe-fifo and safe-fifo were set to default (1000).
 Note that cl-speedy-queue is a bounded queue so that enough space was allocated first.
 All of these result were ran in single thread.
 
 
-| ops 10^n | unsafe-fifo | safe-fifo (wait nil) | safe-fifo(wait t) | cl-speedy-queue | list-queue |
-| :------: | :---------: | :------------------: | :---------------: | :-------------: | :--------: |
-|    3     |    0.000    |        0.000         |       0.000       |      0.000      |   0.000    |
-|    4     |    0.000    |        0.000         |       0.004       |      0.000      |   0.000    |
-|    5     |    0.008    |        0.016         |       0.064       |      0.000      |   0.000    |
-|    6     |    0.052    |        0.184         |       0.648       |      0.012      |   0.020    |
-|    7     |    0.540    |        1.848         |       6.680       |      0.148      |   0.180    |
-|    8     |    5.600    |        18.724        |      63.744       |      1.542      |   2.080    |
+| ops 10^n | unsafe-fifo | safe-fifo (wait nil) | safe-fifo(wait t) | cl-speedy-queue | simple-queue | simple-cqueue | list-queue |
+| :------: | :---------: | :------------------: | :---------------: | :-------------: | :----------: | :-----------: | :--------: |
+|    3     |    0.000    |        0.000         |       0.000       |      0.000      |    0.000     |     0.004     |   0.000    |
+|    4     |    0.000    |        0.000         |       0.004       |      0.000      |    0.000     |     0.004     |   0.000    |
+|    5     |    0.008    |        0.016         |       0.064       |      0.000      |    0.020     |     0.032     |   0.000    |
+|    6     |    0.052    |        0.184         |       0.648       |      0.012      |    0.188     |     0.344     |   0.020    |
+|    7     |    0.540    |        1.848         |       6.680       |      0.148      |    1,892     |     3.624     |   0.180    |
+|    8     |    5.600    |        18.724        |      63.744       |      1.542      |    19.348    |    35.676     |   2.080    |
 
+`simple-queue` and `simple-cqueue` are queue types for the library of queues <https://github.com/oconnore/queues>, where simple-queue is an unsafe FIFO queue, and simple-cqueue is a safe FIFO queue which are implemented by adjustable array. It's clear that the fifo queues of cl-fast-queues are faster.
 
 ### LIFO, single thread, init-length 1000
 
@@ -205,19 +208,19 @@ Note that cl-speedy-lifo and list-queue are not applicable here.
 |        8         |    6.592    |       19.056        |       63.356       |
 
 
-### FIFO,  multi-threads
+### Multi-threads
 
 In this table, a fixed 10^8 times of enqueue+dequeue were made. 
 Note that for each case, a number of threads were spawned to execute enqueue, and the same number of threads were spawned to execute dequeue. For example, in the 2nd row, there were 2 threads which executed enqueue as well as 2 threads which executed dequeue.
 `time` macro was no longer suitable in this situation, instead of that, a loop was used and inspected that if all the en/dequeue operations were done in the loop in the main thread, and thus the time interval could be found out.
 
 
-| threads num | safe-fifo(waitp nil) | safe-fifo(waitp t) | safe-lifo(waitp nil) | safe-lifo(waitp t) |
-| :---------: | :------------------: | :----------------: | :------------------: | :----------------: |
-|      1      |        51.432        |      119.198       |        52.450        |      126.755       |
-|      2      |        35.211        |      148.590       |        37.557        |      150.945       |
-|      3      |        40.442        |      120.081       |        41.046        |      133.014       |
-|      4      |        46.402        |      128.051       |        47.366        |      132.243       |
+| threads num | safe-fifo(waitp nil) | safe-fifo(waitp t) | safe-lifo(waitp nil) | safe-lifo(waitp t) | simple-cqueue |
+| :---------: | :------------------: | :----------------: | :------------------: | :----------------: | :-----------: |
+|      1      |        51.432        |      119.198       |        52.450        |      126.755       |    88.673     |
+|      2      |        35.211        |      148.590       |        37.557        |      150.945       |    76.129     |
+|      3      |        40.442        |      120.081       |        41.046        |      133.014       |    55.811     |
+|      4      |        46.402        |      128.051       |        47.366        |      132.243       |    73.094     |
 
 ## Conclusion
 
