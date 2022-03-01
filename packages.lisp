@@ -1,6 +1,7 @@
 
 (defpackage :cl-fast-queues
   (:use :cl)
+  (:nicknames :fastq)
   (:export
    :make-unsafe-fifo
    :make-unsafe-lifo
