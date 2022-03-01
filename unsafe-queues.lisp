@@ -1,10 +1,13 @@
 (in-package :cl-fast-queues)
 
+(declaim (inline %singularp))
+(declaim (inline queue-empty-p))
+(declaim (inline %unsafe-queue-empty-p))
+
 (defvar *overflow-flag* #.cl-speedy-lifo:*overflow-flag*)
 (defvar *underflow-flag* #.cl-speedy-lifo:*underflow-flag*)
 (defvar *enlarge-size* (the single-float 1.5))
 
-(declaim (inline %singularp))
 (defun %singularp (lst)
   "Test if `lst' has only one element.
 Note that it's not sufficient to test all singular list,
