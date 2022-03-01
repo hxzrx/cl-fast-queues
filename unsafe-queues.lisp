@@ -24,7 +24,7 @@ but it's enough in this lib since the car of lst will never be nil."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (unsafe-fast-fifo-p queue))
 
-(defun make-unsafe-fifo (&optional (init-length 1000)
+(defun make-unsafe-fifo (&key (init-length 1000)
                          &aux (queue (cl-speedy-queue:make-queue init-length))
                            (queue-list (%make-list-queue)))
   (declare (fixnum init-length))
@@ -60,9 +60,8 @@ but it's enough in this lib since the car of lst will never be nil."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-queue:queue-peek (unsafe-fifo-pop-queue queue)))
 
-(defmethod dequeue ((queue unsafe-fast-fifo) &key (keep-in-queue-p t) waitp)
+(defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (ignore waitp))
   (with-slots (pop-queue queue-list) queue
     (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
       (when (and (cl-speedy-queue:queue-empty-p pop-queue)
@@ -84,12 +83,13 @@ and the order of the returned list is the same as queue order. (so that they wil
   (mapcan #'cl-speedy-queue:queue-to-list
           (%list-queue-contents (unsafe-fifo-queue-list queue))))
 
-(defmethod list-to-queue (list (queue-type (eql :unsafe-fifo)))
+(defmethod list-to-queue (list (queue-type (eql :unsafe-fifo)) &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
+  (declare (ignore waitp))
   (let* ((len (length list))
-         (queue (make-unsafe-fifo len)))
+         (queue (make-unsafe-fifo :init-length len)))
     (dolist (item list)
       (enqueue item queue))
     queue))
@@ -104,7 +104,7 @@ and the order of the returned list is the same as queue order. (so that they wil
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (unsafe-fast-lifo-p queue))
 
-(defun make-unsafe-lifo (&optional (init-length 1000)
+(defun make-unsafe-lifo (&key (init-length 1000)
                          &aux (queue (cl-speedy-lifo:make-queue init-length)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
@@ -138,9 +138,8 @@ and the order of the returned list is the same as queue order. (so that they wil
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-lifo:queue-peek (unsafe-lifo-cur-queue queue)))
 
-(defmethod dequeue ((queue unsafe-fast-lifo) &key (keep-in-queue-p t) waitp)
+(defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (ignore waitp))
   (with-slots (cur-queue queue-list) queue
     (declare (list queue-list))
     (prog1 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)
@@ -162,12 +161,13 @@ and the order of the returned list is the reverse of the enqueue order (so that 
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (mapcan #'cl-speedy-lifo:queue-to-list (unsafe-lifo-queue-list queue)))
 
-(defmethod list-to-queue (list (queue-type (eql :unsafe-lifo)))
+(defmethod list-to-queue (list (queue-type (eql :unsafe-lifo)) &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
+  (declare (ignore waitp))
   (let* ((len (length list))
-         (queue (make-unsafe-lifo len)))
+         (queue (make-unsafe-lifo :init-length len)))
     (dolist (item list)
       (enqueue item queue))
     queue))
