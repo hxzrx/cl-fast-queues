@@ -48,7 +48,7 @@ A lock created with Bordeaux Threads which is used to protect accessing the slot
 A condition variable created with Bordeaux Threads which is used in enqueue and dequeue.
 
 ##### waitp
-If waitp is set to T, the dequeue operation will wait if the queue is currently empty until a new item enqueued and notified. 
+If waitp is set to T, the dequeue operation will wait if the queue is currently empty until a new item enqueued and notified.
 If waitp is set to NIL,the dequeue operation will not wait and return *underflow-flag* instantly if the queue is currently empty.
 The value of waitp is very important for the performance. DO NOT set it to T unless you do want to wait for a significant value in threads.
 The default value of waitp is T.
@@ -70,7 +70,7 @@ A lock created with Bordeaux Threads which is used to protect accessing the slot
 A condition variable created with Bordeaux Threads which is used in enqueue and dequeue.
 
 ##### waitp
-If waitp is set to T, the dequeue operation will wait if the queue is currently empty until a new item enqueued and notified. 
+If waitp is set to T, the dequeue operation will wait if the queue is currently empty until a new item enqueued and notified.
 If waitp is set to NIL,the dequeue operation will not wait and return *underflow-flag* instantly if the queue is currently empty.
 The value of waitp is very important for the performance. DO NOT set it to T unless you do want to wait for a significant value in threads.
 The default value of waitp is T.
@@ -180,7 +180,7 @@ All of these result were ran in single thread.
 
 ### FIFO, single thread, init-length changed
 
-In this table, a fixed 10^8 times of enqueue+dequeue were made, but the init-length were changed from 10^3 to 10^8. 
+In this table, a fixed 10^8 times of enqueue+dequeue were made, but the init-length were changed from 10^3 to 10^8.
 Note that cl-speedy-lifo and list-queue are not applicable here.
 
 | init-length 10^n | unsafe-fifo | safe-fifo(waitp nil) | safe-fifo(waitp t) |
@@ -195,7 +195,7 @@ Note that cl-speedy-lifo and list-queue are not applicable here.
 
 ### LIFO, single-thread, init-length changed
 
-In this table, a fixed 10^8 times of enqueue+dequeue were made, but the init-length were changed from 10^3 to 10^8. 
+In this table, a fixed 10^8 times of enqueue+dequeue were made, but the init-length were changed from 10^3 to 10^8.
 Note that cl-speedy-lifo and list-queue are not applicable here.
 
 | init-length 10^n | unsafe-lifo | safe-lifo(wait nil) | safe-lifo(waitp t) |
@@ -210,7 +210,7 @@ Note that cl-speedy-lifo and list-queue are not applicable here.
 
 ### Multi-threads
 
-In this table, a fixed 10^8 times of enqueue+dequeue were made. 
+In this table, a fixed 10^8 times of enqueue+dequeue were made.
 Note that for each case, a number of threads were spawned to execute enqueue, and the same number of threads were spawned to execute dequeue. For example, in the 2nd row, there were 2 threads which executed enqueue as well as 2 threads which executed dequeue.
 `time` macro was no longer suitable in this situation, instead of that, a loop was used and inspected that if all the en/dequeue operations were done in the loop in the main thread, and thus the time interval could be found out.
 
@@ -226,7 +226,7 @@ Note that for each case, a number of threads were spawned to execute enqueue, an
 
 The four queues, unsafe-fifo, unsafe-lifo, safe-fifo and safe-lifo are developed to deal with unbound queues which are implemented with simple-arrays.
 
-The unsafe versions are slightly slower than their underground bounded counterparts. The `waitp` slot is an very important factor for the performance, and the safe versions are 3~4 times slower than their unsafe versions in single thread environments, and 2~3 times slower in multiple threads environments. The reason is apparent, the semantics of queues (either fifo or lifo) are single threaded, which can not accelerate in threads, and the locks and condition variables in the safe versions defeated their performances.
+The unsafe versions are slightly slower than their underground bounded counterparts. The `waitp` slot is an very important factor for the performance, and the safe versions are 3`~`4 times slower than their unsafe versions in single thread environments, and 2`~`3 times slower in multiple threads environments. The reason is apparent, the semantics of queues (either fifo or lifo) are single threaded, which can not accelerate in threads, and the locks and condition variables in the safe versions defeated their performances.
 
 The safe version are suitable for the environments where data may be modified by other threads. The `waitp` slot is a very important for the performance,  DO NOT set it to T unless you do want to wait for a significant value in threads, although the default value of waitp is T.
 
