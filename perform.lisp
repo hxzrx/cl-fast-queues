@@ -1,3 +1,4 @@
+(ql:quickload :cl-fast-queues)
 (ql:quickload :local-time)
 (ql:quickload :queues)
 (ql:quickload :queues.simple-cqueue)
@@ -10,7 +11,7 @@
 (defparameter *lengths* (loop for i from 3 to 8
                               collect (expt 10 i)))
 (defparameter *max-times* (expt 10 8))
-
+(defparameter *threads-num* '(1 2 3 4))
 
 ;;; ------- FIFO, Single thread, init-length 1000 -------
 
@@ -189,9 +190,8 @@
           (dotimes (i *max-times*)
             (cl-fast-queues:dequeue queue)))))
 
-;;; ------- Multi-threads -------
 
-(defparameter *threads-num* '(1 2 3 4))
+;;; ------- Multi-threads -------
 
 ;; safe fifo, waitp nil
 (dolist (t-num *threads-num*)
@@ -313,6 +313,31 @@
       (bt:make-thread #'(lambda ()
                           (dolist (item lst)
                             (queues:qpop queue))
+                          (sb-ext:atomic-incf (car counter)))))
+    (loop while (/= (car counter) (* 2 t-num))
+          do (bt:thread-yield))
+    (setf ts2 (local-time:now))
+    (format t "~&Time cost: ~d.~%" (local-time:timestamp-difference ts2 ts1))))
+
+#+sbcl
+(dolist (t-num *threads-num*)
+  (format t "~&common lisp list, threads: ~d, ~d times.~%" t-num *max-times*)
+  (sb-ext:gc :full t)
+  (let* ((num-each-thread (truncate (/ *max-times* t-num)))
+         (lst (make-list num-each-thread :initial-element 888))
+         (queue (list nil))
+         (counter (list 0))
+         (ts1 (local-time:now))
+         (ts2 nil))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (sb-ext:atomic-push item (car queue)))
+                          (sb-ext:atomic-incf (car counter)))))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (sb-ext:atomic-pop (car queue)))
                           (sb-ext:atomic-incf (car counter)))))
     (loop while (/= (car counter) (* 2 t-num))
           do (bt:thread-yield))
