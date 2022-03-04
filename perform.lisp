@@ -296,7 +296,7 @@
 
 ;; simple-cqueue
 (dolist (t-num *threads-num*)
-  (format t "~&safe lifo, threads: ~d, ~d times.~%" t-num *max-times*)
+  (format t "~&simple cqueue, threads: ~d, ~d times.~%" t-num *max-times*)
   (sb-ext:gc :full t)
   (let* ((num-each-thread (truncate (/ *max-times* t-num)))
          (lst (make-list num-each-thread :initial-element 888))
@@ -320,8 +320,8 @@
     (format t "~&Time cost: ~d.~%" (local-time:timestamp-difference ts2 ts1))))
 
 #+sbcl
-(dolist (t-num *threads-num*)
-  (format t "~&common lisp list, threads: ~d, ~d times.~%" t-num *max-times*)
+(dolist (t-num *threads-num*) ; 10s
+  (format t "~&common lisp vanilla list, threads: ~d, ~d times.~%" t-num *max-times*)
   (sb-ext:gc :full t)
   (let* ((num-each-thread (truncate (/ *max-times* t-num)))
          (lst (make-list num-each-thread :initial-element 888))
@@ -338,6 +338,31 @@
       (bt:make-thread #'(lambda ()
                           (dolist (item lst)
                             (sb-ext:atomic-pop (car queue)))
+                          (sb-ext:atomic-incf (car counter)))))
+    (loop while (/= (car counter) (* 2 t-num))
+          do (bt:thread-yield))
+    (setf ts2 (local-time:now))
+    (format t "~&Time cost: ~d.~%" (local-time:timestamp-difference ts2 ts1))))
+
+#+sbcl
+(dolist (t-num *threads-num*)  ; 10s
+  (format t "~&common lisp list, threads: ~d, ~d times.~%" t-num *max-times*)
+  (sb-ext:gc :full t)
+  (let* ((num-each-thread (truncate (/ *max-times* t-num)))
+         (lst (make-list num-each-thread :initial-element 888))
+         (queue (sb-concurrency:make-queue))
+         (counter (list 0))
+         (ts1 (local-time:now))
+         (ts2 nil))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (sb-concurrency:enqueue item queue))
+                          (sb-ext:atomic-incf (car counter)))))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (sb-concurrency:dequeue queue))
                           (sb-ext:atomic-incf (car counter)))))
     (loop while (/= (car counter) (* 2 t-num))
           do (bt:thread-yield))
