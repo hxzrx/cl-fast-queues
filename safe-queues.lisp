@@ -98,6 +98,16 @@ So if `item' is nil, the returned value will be nil whatever."
     (some #'(lambda (sfifo) (cl-speedy-queue:queue-find item sfifo :key key :test test))
           (%list-queue-contents (safe-fifo-queue-list queue)))))
 
+(defmethod queue-flush ((queue safe-fast-fifo))
+  "Empty the `queue'"
+  (with-slots (push-queue pop-queue queue-list lock) queue
+    (bt:with-lock-held (lock)
+      (setf push-queue (cl-speedy-queue:queue-flush push-queue)
+            pop-queue push-queue)
+      (%list-queue-flush queue-list)
+      (%list-queue-enqueue push-queue queue-list)
+      queue)))
+
 (defmethod queue-to-list ((queue safe-fast-fifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the same as enqueue order. (so that they will have the same dequeue order)"
@@ -209,6 +219,15 @@ So if `item' is nil, the returned value will be nil whatever."
   (bt:with-lock-held ((safe-lifo-lock queue))
     (some #'(lambda (slifo) (cl-speedy-lifo:queue-find item slifo :key key :test test))
           (safe-lifo-queue-list queue))))
+
+(defmethod queue-flush ((queue safe-fast-lifo))
+  "Empty the `queue'"
+  (with-slots (cur-queue queue-list lock) queue
+    (bt:with-lock-held (lock)
+      (setf cur-queue (cl-speedy-lifo:queue-flush cur-queue))
+      (setf (cdr queue-list) nil
+            (car queue-list) cur-queue)
+      queue)))
 
 (defmethod queue-to-list ((queue safe-fast-lifo))
   "Return a list of items those have been enqueued,
