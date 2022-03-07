@@ -381,6 +381,20 @@
       (dolist (item find-items) ; find queue
         (true (queue-find item queue))))))
 
+(define-test unsafe-lifo-queue-flush :parent unsafe-lifo
+  (dotimes (i *loop-test-times*)
+    (let* ((count (random 20))
+           (queue (make-unsafe-lifo :init-length (1+ (random 10)))))
+      (finish (cl-fast-queues::queue-flush queue))
+      (dotimes (i count)
+        (enqueue i queue))
+      (finish (cl-fast-queues::queue-flush queue))
+      (is eql t (queue-empty-p queue))
+      (dotimes (i count)
+        (enqueue i queue))
+      (finish (cl-fast-queues::queue-flush queue))
+      (is eql t (queue-empty-p queue)))))
+
 (define-test unsafe-lifo-queue<->list :parent unsafe-lifo
   (dotimes (i *loop-test-times*)
     (let ((items (loop for i below (1+ (random 50)) collect (random 10)))

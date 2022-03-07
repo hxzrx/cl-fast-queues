@@ -167,6 +167,14 @@ So if `item' is nil, the returned value will be nil whatever."
   (some #'(lambda (ulifo) (cl-speedy-lifo:queue-find item ulifo :key key :test test))
         (unsafe-lifo-queue-list queue)))
 
+(defmethod queue-flush ((queue unsafe-fast-lifo))
+  "Empty the `queue'"
+  (with-slots (cur-queue queue-list) queue
+    (setf cur-queue (cl-speedy-lifo:queue-flush cur-queue))
+    (setf (cdr queue-list) nil
+          (car queue-list) cur-queue)
+    queue))
+
 (defmethod queue-to-list ((queue unsafe-fast-lifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
