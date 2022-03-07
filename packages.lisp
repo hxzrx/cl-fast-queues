@@ -17,6 +17,7 @@
    :queue-empty-p
    :queue-count
    :queue-find
+   :queue-flush
    :queue-to-list
    :list-to-queue
    :*overflow-flag*

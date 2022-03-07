@@ -221,6 +221,20 @@
       (dolist (item find-items) ; find queue
         (true (queue-find item queue))))))
 
+(define-test unsafe-fifo-queue-flush :parent unsafe-fifo
+  (dotimes (i *loop-test-times*)
+    (let* ((count (random 20))
+           (queue (make-unsafe-fifo :init-length (1+ (random 10)))))
+      (finish (cl-fast-queues::queue-flush queue))
+      (dotimes (i count)
+        (enqueue i queue))
+      (finish (cl-fast-queues::queue-flush queue))
+      (is eql t (queue-empty-p queue))
+      (dotimes (i count)
+        (enqueue i queue))
+      (finish (cl-fast-queues::queue-flush queue))
+      (is eql t (queue-empty-p queue)))))
+
 (define-test unsafe-fifo-queue<->list :parent unsafe-fifo
   (dotimes (i *loop-test-times*)
     (let ((items (loop for i below (1+ (random 50)) collect (random 10)))

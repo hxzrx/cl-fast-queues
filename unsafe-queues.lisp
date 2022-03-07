@@ -79,6 +79,15 @@ So if `item' is nil, the returned value will be nil whatever."
   (some #'(lambda (ufifo) (cl-speedy-queue:queue-find item ufifo :key key :test test))
         (%list-queue-contents (unsafe-fifo-queue-list queue))))
 
+(defmethod queue-flush ((queue unsafe-fast-fifo))
+  "Empty the `queue'"
+  (with-slots (push-queue pop-queue queue-list) queue
+    (setf push-queue (cl-speedy-queue:queue-flush push-queue)
+          pop-queue push-queue)
+    (%list-queue-flush queue-list)
+    (%list-queue-enqueue push-queue queue-list)
+    queue))
+
 (defmethod queue-to-list ((queue unsafe-fast-fifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the same as queue order. (so that they will have the same dequeue order)"
