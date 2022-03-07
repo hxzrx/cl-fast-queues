@@ -16,6 +16,8 @@
 
 (define-test cl-fast-queues-tests)
 
+(define-test speedy-queue :parent cl-fast-queues-tests)
+
 (define-test unsafe-queues :parent cl-fast-queues-tests)
 (define-test unsafe-fifo :parent unsafe-queues)
 (define-test unsafe-lifo :parent unsafe-queues)
@@ -28,6 +30,22 @@
 
 
 ;;;; -----------------------------------------------------------
+
+;;;; speedy-queue.lisp
+(define-test speedy-queue-flush :parent speedy-queue
+  (dotimes (i *loop-test-times*)
+    (let* ((count (1+ (random 10)))
+           (queue (cl-speedy-queue:make-queue count))
+           (most-enq (random count)))
+      (dotimes (i most-enq)
+        (cl-speedy-queue:enqueue 0 queue))
+      (finish (cl-speedy-queue:queue-flush queue))
+      (is eq t (cl-speedy-queue:queue-empty-p queue))
+      (dotimes (i most-enq)
+        (cl-speedy-queue:enqueue 0 queue))
+      (finish (cl-speedy-queue:queue-flush queue))
+      (is eq t (cl-speedy-queue:queue-empty-p queue)))))
+
 ;;;; unsafe-queues.lisp
 
 ;;; ------- unsafe-fifo -------

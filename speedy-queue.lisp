@@ -16,6 +16,7 @@
    :enqueue
    :dequeue
    :queue-find
+   :queue-flush
    :*overflow-flag*
    :*underflow-flag*))
 
@@ -173,6 +174,12 @@
           (when (= (the fixnum (%queue-in queue)) out)
             (setf (svref queue out) '#.queue-sentinel))))))
 
+(define-speedy-function %queue-flush (queue)
+  (setf (svref queue 1) 2
+        (svref queue 0) 2
+        (svref queue 2) '#.queue-sentinel)
+  queue)
+
 ;;; Now that all the backend functions are defined, we can define the API:
 
 (defun make-queue (size)
@@ -256,3 +263,7 @@ this is useful when the queue holds very big objects."
             (find item  queue :start out :end in :key key :test test)
             (or (find item queue :start out :key key :test test)
                 (find item queue :start 2 :end in :key key :test test))))))
+
+(defun queue-flush (queue)
+  "Make `queue' empty"
+  (%queue-flush queue))
