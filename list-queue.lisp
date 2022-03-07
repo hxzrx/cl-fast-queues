@@ -7,7 +7,8 @@
 
 ;;; A queue is a (last . contents) pair
 (proclaim '(inline %list-queue-contents %make-list-queue %list-queue-enqueue
-            %list-queue-dequeue %list-queue-peek %list-queue-empty-p %list-queue-nconc))
+            %list-queue-dequeue %list-queue-peek %list-queue-empty-p %list-queue-nconc
+            %list-queue-find %list-queue-flush))
 
 (defun %list-queue-contents (q) ; queue-contents in the raw src
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -49,3 +50,23 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (setf (car q)
         (last (setf (rest (car q)) list))))
+
+(defun %list-queue-find (item q &key (key #'identity) (test #'eql))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (function key test))
+  ;;(find item (cdr q) :key key :test test)) ; cannot optimize
+  #+:ignore
+  (when q  ; return the item itself if it's found
+    (if (funcall test item (funcall key (car q)))
+        (car q)
+        (%list-queue-find item (cdr q) :key key :test test)))
+  (when q  ; return T if it's found else return NIL and I need this
+    (or (funcall test item (funcall key (car q)))
+         (%list-queue-find item (cdr q) :key key :test test))))
+
+(defun %list-queue-flush (q)
+  "Empty the queue"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (setf (cdr q) nil)
+  (setf (car q) q)
+  q)
