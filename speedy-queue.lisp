@@ -22,11 +22,15 @@
 
 (cl:in-package #:cl-speedy-queue)
 
+(eval-when (:compile-toplevel)
+  (defvar queue-sentinel (make-symbol "EMPTY")))
+
 (defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
 ;;:overflow-A6AC128A-4385-4C54-B384-8D687456C10A)
 
 (defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*)
 ;;:underflow-80B88679-7DD0-499E-BAE9-673167980515)
+
 
 ;;; The functions in this file are dangerous. Good compilers will generate code that will
 ;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
@@ -63,9 +67,6 @@
   (:report (lambda (c s)
              (format s "Queue ~S is empty, and can't be dequeued anymore"
                      (queue-condition-queue c)))))
-
-(eval-when (:compile-toplevel)
-  (defvar queue-sentinel (make-symbol "EMPTY")))
 
 (define-speedy-function %make-queue (length)
   "Creates a new queue of maximum size LENGTH"

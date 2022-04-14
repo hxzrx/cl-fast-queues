@@ -24,6 +24,14 @@
 
 (cl:in-package #:cl-speedy-queue-safe)
 
+(eval-when (:compile-toplevel)
+  (defvar queue-sentinel (make-symbol "EMPTY"))
+  (defvar +fixnum-bits+ (floor (log most-positive-fixnum 2)))  ; 62 for sbcl x86-64, 60 for ccl x86-64
+  (defvar +queue-length-bits+ (floor (/ +fixnum-bits+ 2))) ; 31
+  (defvar +low-bits-ones+  (1- (expt 2 +queue-length-bits+))) ; 2147483647, 31 bits of ones
+  (defvar +high-bits-ones+ (ash +low-bits-ones+ +queue-length-bits+)) ; 31 higher bits of ones, 31 lower bits of zeros
+  (defvar +max-queue-length+ +low-bits-ones+)) ; 2147483647
+
 (defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
 ;;:overflow-A6AC128A-4385-4C54-B384-8D687456C10A)
 
@@ -65,15 +73,6 @@
   (:report (lambda (c s)
              (format s "Queue ~S is empty, and can't be dequeued anymore"
                      (queue-condition-queue c)))))
-
-(eval-when (:compile-toplevel)
-  (defvar queue-sentinel (make-symbol "EMPTY"))
-  (defvar +fixnum-bits+ (floor (log most-positive-fixnum 2)))  ; 62 for sbcl x86-64, 60 for ccl x86-64
-  (defvar +queue-length-bits+ (floor (/ +fixnum-bits+ 2))) ; 31
-  (defvar +low-bits-ones+  (1- (expt 2 +queue-length-bits+))) ; 2147483647, 31 bits of ones
-  (defvar +high-bits-ones+ (ash +low-bits-ones+ +queue-length-bits+)) ; 31 higher bits of ones, 31 lower bits of zeros
-  (defvar +max-queue-length+ +low-bits-ones+)) ; 2147483647
-
 
 (define-speedy-function %make-queue (length)
   "Creates a new queue of maximum size LENGTH"
