@@ -415,3 +415,38 @@ this is useful when the queue holds very big objects."
   (time (dotimes (i times)
           (test-ash-wt-high num))))
 |#
+
+#|
+;; for 10^9 times, about 1~3 seconds slower than speedy-queue.
+
+(defparameter *times* (loop for i from 3 to 9
+                            collect (expt 10 i)))
+
+(dolist (num *times*) ; 15.516s for 10^9
+  (format t "FIFO queue, push+pop, without consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (let ((queue (make-queue num)))
+    (time (progn
+            (dotimes (i num)
+              (enqueue i queue))
+            (dotimes (i num)
+              (dequeue queue nil))))))
+
+(dolist (num *times*) ; 17.988s for 10^9
+  (format t "FIFO queue, push+pop, with consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (time (let ((queue (make-queue num)))
+          (dotimes (i num)
+            (enqueue i queue))
+          (dotimes (i num)
+            (dequeue queue nil)))))
+
+(dolist (num *times*) ; crashed for 10^9 in my machine
+  (format t "LIST queue, push+pop: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (time (let ((list-queue nil))
+          (dotimes (i num)
+            (cl:push i list-queue))
+          (dotimes (i num)
+            (cl:pop list-queue)))))
+|#
