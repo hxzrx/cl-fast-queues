@@ -7,9 +7,12 @@
   :serial t
   :in-order-to ((test-op (test-op "cl-fast-queues/tests")))
   :depends-on (:bordeaux-threads
+               :alexandria
+               :atomics
                :cl-speedy-lifo)
   :components ((:file "packages")
                (:file "speedy-queue")
+               (:file "speedy-queue-safe")
                (:file "list-queue")
                (:file "unsafe-queues")
                (:file "safe-queues")))
