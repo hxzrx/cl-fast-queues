@@ -254,7 +254,7 @@ this is useful when the queue holds very big objects."
         (if (> in out)
             (coerce (subseq queue out in) 'list)
             (nconc (coerce (subseq queue out) 'list)
-                   (coerce (subseq queue 2 in) 'list))))))
+                   (coerce (subseq queue 1 in) 'list))))))
 
 (defun list-to-queue (list)
   "Conver a list to a queue, the first of the returned queue is the car or the list."
