@@ -167,12 +167,8 @@
     (if (or (not (= in out))
             (eq (svref queue in) '#.queue-sentinel))
         (prog1 (setf (svref queue in) object)
-          #+:ignore
-          (setf (ldb (byte 31 0) (the fixnum (svref queue 0))) ; optimize failed
-                (the fixnum (%next-index in (length queue))))
           (setf (svref queue 0) (the fixnum (+ (logand flag #.+high-bits-ones+)
                                                (%next-index in (length (the (simple-vector *) queue)))))))
-        ;;(error 'queue-overflow-error :queue queue :item object)
         *overflow-flag*
         )))
 
@@ -183,14 +179,9 @@
          (in  (the fixnum (logand flag #.+low-bits-ones+)))
          (out-object (svref queue out)))
     (if (eq out-object '#.queue-sentinel)
-        ;;(error 'queue-underflow-error :queue queue)
         *underflow-flag*
         (prog1 out-object
           (unless keep-in-queue-p (setf (svref queue out) nil))
-          #+:ignore(setf (ldb (byte 32 32) (svref queue 0))
-                (if (= (incf out) (length queue))
-                    (setf out 1)
-                    out))
           (setf (svref queue 0)
                 (the fixnum (+ (ash (if (= (incf out) (length (the (simple-vector *) queue)))
                                         (setf out 1) out)
