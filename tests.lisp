@@ -61,7 +61,7 @@
     (is equal nil (cl-speedy-queue:queue-to-list queue))
     (is eql nil (cl-speedy-queue:queue-find (1+ len) queue))
     (is eql nil (cl-speedy-queue:queue-find nil queue))
-    (is eql nil (cl-speedy-queue:queue-find cl-speedy-queue::queue-sentinel queue))
+    ;;(is eql nil (cl-speedy-queue:queue-find cl-speedy-queue::queue-sentinel queue))
     (loop for item in lst
           for idx from 0
           for count from 1
@@ -76,7 +76,7 @@
                     (is equal (subseq lst 0 count) (cl-speedy-queue:queue-to-list queue))
                     (is eql nil (cl-speedy-queue:queue-find (1+ len) queue))
                     (is eql nil (cl-speedy-queue:queue-find nil queue))
-                    (is eql nil (cl-speedy-queue:queue-find cl-speedy-queue::queue-sentinel queue))
+                    ;;(is eql nil (cl-speedy-queue:queue-find cl-speedy-queue::queue-sentinel queue))
                     (loop for element in (subseq lst 0 count)
                           do (progn (is = element (cl-speedy-queue:queue-find element queue))))
                     (loop for element in (subseq lst count len)
@@ -97,7 +97,7 @@
                     (is equal (subseq lst count len) (cl-speedy-queue:queue-to-list queue))
                     (is eql nil (cl-speedy-queue:queue-find (1+ len) queue))
                     (is eql nil (cl-speedy-queue:queue-find nil queue))
-                    (is eql nil (cl-speedy-queue:queue-find cl-speedy-queue::queue-sentinel queue))
+                    ;;(is eql nil (cl-speedy-queue:queue-find cl-speedy-queue::queue-sentinel queue))
                     (loop for element in (subseq lst count len)
                           do (progn (is = element (cl-speedy-queue:queue-find element queue))))
                     (loop for element in (subseq lst 0 count)
@@ -122,7 +122,7 @@
       (finish (cl-speedy-queue-safe:queue-flush queue))
       (is eq t (cl-speedy-queue-safe:queue-empty-p queue)))))
 
-(define-test speedy-queue-safe-basic :parent speedy-queue-safe
+(define-test speedy-queue-safe-unsafe-basic :parent speedy-queue-safe
   (let* ((len 20)
          (queue (cl-speedy-queue-safe:make-queue len))
          (lst (loop for i from 0 below len collect i)))
@@ -134,7 +134,62 @@
     (is equal nil (cl-speedy-queue-safe:queue-to-list queue))
     (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
     (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
-    (is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
+    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
+    (loop for item in lst
+          for idx from 0
+          for count from 1
+          do (progn (finish (cl-speedy-queue-safe::enqueue-unsafe item queue))
+                    (is = count (cl-speedy-queue-safe:queue-count queue))
+                    (is = len (cl-speedy-queue-safe:queue-length queue))
+                    (is-values (cl-speedy-queue-safe:queue-peek queue) (eql (first lst)) (eql t))
+                    (if (= count len)
+                        (true (cl-speedy-queue-safe:queue-full-p queue))
+                        (false (cl-speedy-queue-safe:queue-full-p queue)))
+                    (false (cl-speedy-queue-safe:queue-empty-p queue))
+                    (is equal (subseq lst 0 count) (cl-speedy-queue-safe:queue-to-list queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
+                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
+                    (loop for element in (subseq lst 0 count)
+                          do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
+                    (loop for element in (subseq lst count len)
+                          do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
+                    ))
+    (loop for idx from 0 below len
+          for count from 1
+          do (progn (finish (cl-speedy-queue-safe::dequeue-unsafe queue))
+                    (is = (- len count) (cl-speedy-queue-safe:queue-count queue))
+                    (is = len (cl-speedy-queue-safe:queue-length queue))
+                    (if (= count len)
+                        (is-values (cl-speedy-queue-safe:queue-peek queue) (eql nil) (eql nil))
+                        (is-values (cl-speedy-queue-safe:queue-peek queue) (eql (nth count lst)) (eql t)))
+                    (false (cl-speedy-queue-safe:queue-full-p queue))
+                    (if (= count len)
+                        (true (cl-speedy-queue-safe:queue-empty-p queue))
+                        (false (cl-speedy-queue-safe:queue-empty-p queue)))
+                    (is equal (subseq lst count len) (cl-speedy-queue-safe:queue-to-list queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
+                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue::queue-sentinel queue))
+                    (loop for element in (subseq lst count len)
+                          do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
+                    (loop for element in (subseq lst 0 count)
+                          do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
+                    ))))
+
+(define-test speedy-queue-safe-safe-basic :parent speedy-queue-safe
+  (let* ((len 20)
+         (queue (cl-speedy-queue-safe:make-queue len))
+         (lst (loop for i from 0 below len collect i)))
+    (is = 0 (cl-speedy-queue-safe:queue-count queue))
+    (is = len (cl-speedy-queue-safe:queue-length queue))
+    (is-values (cl-speedy-queue-safe:queue-peek queue) (eql nil) (eql nil))
+    (false (cl-speedy-queue-safe:queue-full-p queue))
+    (true (cl-speedy-queue-safe:queue-empty-p queue))
+    (is equal nil (cl-speedy-queue-safe:queue-to-list queue))
+    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
+    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
+    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
     (loop for item in lst
           for idx from 0
           for count from 1
@@ -149,7 +204,7 @@
                     (is equal (subseq lst 0 count) (cl-speedy-queue-safe:queue-to-list queue))
                     (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
                     (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
-                    (is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
+                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
                     (loop for element in (subseq lst 0 count)
                           do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
                     (loop for element in (subseq lst count len)
@@ -170,7 +225,7 @@
                     (is equal (subseq lst count len) (cl-speedy-queue-safe:queue-to-list queue))
                     (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
                     (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
-                    (is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue::queue-sentinel queue))
+                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue::queue-sentinel queue))
                     (loop for element in (subseq lst count len)
                           do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
                     (loop for element in (subseq lst 0 count)
