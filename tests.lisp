@@ -13,6 +13,9 @@
                     (elt sequence (1- i))))
   sequence)
 
+(defun make-random-list (len &optional (max 5))
+  (loop for i below len
+        collect (random max)))
 
 (define-test cl-fast-queues-tests)
 
@@ -232,6 +235,30 @@
                           do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
       ))))
 
+(define-test speedy-queue-safe-enqueue-threads :parent speedy-queue-safe
+      #+sbcl (sb-ext:gc :full t)
+      #+ccl (ccl:gc)
+      (dotimes (i *loop-test-times*)
+        (let* ((n (1+ (random 20))) ; queue length
+               (queue (cl-speedy-queue-safe:make-queue n))
+               (k (random n)) ; fill num
+               (lst (make-random-list k))
+               (total (apply #'+ lst)))
+          (dolist (element lst)
+            (let ((ele element)) ; make a bind as the var of element will change and will affect among the threads
+              (bt:make-thread #'(lambda ()
+                                  (cl-speedy-queue-safe:enqueue ele queue)))))
+          (sleep 0.01)
+          (unless (= k (cl-speedy-queue-safe:queue-count queue))
+            (sleep 1)
+            (format t "~&Result: ~d~%" (= k (cl-speedy-queue-safe:queue-count queue)))
+            (format t "~&lst: ~d~%" lst)
+            (format t "~&queue: ~d~%" queue)
+            (format t "~&lst len: ~d, queue-count: ~d, k = ~d~%~%" (length lst) (cl-speedy-queue-safe:queue-count queue) k)
+            (force-output)
+            #+:ignore(is = k (cl-speedy-queue-safe:queue-count queue)))
+          #+:ignore(is = total (apply #'+ (cl-speedy-queue-safe:queue-to-list queue)))
+          )))
 
 ;;;; list-queue.lisp
 
