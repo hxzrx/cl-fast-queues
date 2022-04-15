@@ -24,19 +24,15 @@
 
 (cl:in-package #:cl-speedy-queue-safe)
 
-(eval-when (:compile-toplevel)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defvar queue-sentinel (make-symbol "EMPTY"))
   (defvar +fixnum-bits+ (floor (log most-positive-fixnum 2)))  ; 62 for sbcl x86-64, 60 for ccl x86-64
   (defvar +queue-length-bits+ (floor (/ +fixnum-bits+ 2))) ; 31
   (defvar +low-bits-ones+  (1- (expt 2 +queue-length-bits+))) ; 2147483647, 31 bits of ones
   (defvar +high-bits-ones+ (ash +low-bits-ones+ +queue-length-bits+)) ; 31 higher bits of ones, 31 lower bits of zeros
-  (defvar +max-queue-length+ +low-bits-ones+)) ; 2147483647
-
-(defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
-;;:overflow-A6AC128A-4385-4C54-B384-8D687456C10A)
-
-(defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*)
-;;:underflow-80B88679-7DD0-499E-BAE9-673167980515)
+  (defvar +max-queue-length+ +low-bits-ones+) ; 2147483647
+  (defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
+  (defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*))
 
 ;;; The functions in this file are dangerous. Good compilers will generate code that will
 ;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
@@ -157,8 +153,7 @@
     (declare (fixnum new-index))
     (the fixnum (if (= new-index queue-real-length) 1 new-index))))  ; Overflow to 1 if necessary
 
-(define-speedy-function %enqueue (object queue)
-  ;;(declare (fixnum in))
+(define-speedy-function %enqueue (object queue) ; unsafe version
   "Enqueue OBJECT and increment QUEUE's entry pointer"
   (let* ((flag (the fixnum (svref queue 0)))
          (out (ash flag #.(- +queue-length-bits+)))
@@ -168,17 +163,17 @@
         (prog1 (setf (svref queue in) object)
           (setf (svref queue 0) (the fixnum (+ (logand flag #.+high-bits-ones+)
                                                (%next-index in (length (the (simple-vector *) queue)))))))
-        *overflow-flag*
+        #.*overflow-flag*
         )))
 
-(define-speedy-function %dequeue (queue keep-in-queue-p)
+(define-speedy-function %dequeue (queue keep-in-queue-p) ; unsafe version
   "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
   (let* ((flag (the fixnum (svref queue 0)))
          (out (ash flag #.(- +queue-length-bits+)))
          (in  (the fixnum (logand flag #.+low-bits-ones+)))
          (out-object (svref queue out)))
     (if (eq out-object '#.queue-sentinel)
-        *underflow-flag*
+        #.*underflow-flag*
         (prog1 out-object
           (unless keep-in-queue-p (setf (svref queue out) nil))
           (setf (svref queue 0)
@@ -188,6 +183,48 @@
                                in)))
           (when (= in out)
             (setf (svref queue out) '#.queue-sentinel))))))
+
+(define-speedy-function %enqueue-safe (object queue) ; safe version
+  "Enqueue OBJECT and increment QUEUE's entry pointer"
+  (loop (let* ((old-flag (the fixnum (svref queue 0)))
+               (out (ash old-flag #.(- +queue-length-bits+)))
+               (in (the fixnum (logand old-flag #.+low-bits-ones+)))
+               )
+          (if (or (not (= in out))
+                  (eq (svref queue in) '#.queue-sentinel))
+              (let ((new-flag (the fixnum (+ (logand old-flag #.+high-bits-ones+)
+                                             (%next-index in (length (the (simple-vector *) queue)))))))
+                (when (atomics:cas (svref queue 0) old-flag new-flag)
+                  (return (setf (svref queue in) object))))
+              #+:ignore(prog1 (setf (svref queue in) object)
+                         (setf (svref queue 0) (the fixnum (+ (logand flag #.+high-bits-ones+)
+                                                              (%next-index in (length (the (simple-vector *) queue)))))))
+              (return #.*overflow-flag*)
+              ))))
+
+(define-speedy-function %dequeue-safe (queue keep-in-queue-p) ; safe version
+  "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
+  (loop (let* ((old-flag (the fixnum (svref queue 0)))
+               (out (ash old-flag #.(- +queue-length-bits+)))
+               (out2 out)
+               (in  (the fixnum (logand old-flag #.+low-bits-ones+)))
+               (out-object (svref queue out)))
+          (if (eq out-object '#.queue-sentinel)
+              (return #.*underflow-flag*)
+              (let ((new-flag (the fixnum (+ (ash (if (= (incf out) (length (the (simple-vector *) queue)))
+                                                      (setf out 1) out)
+                                                  #.+queue-length-bits+)
+                                             in))))
+                (when (atomics:cas (svref queue 0) old-flag new-flag)
+                  #+:ignore(setf (svref queue 0)
+                                 (the fixnum (+ (ash (if (= (incf out) (length (the (simple-vector *) queue)))
+                                                         (setf out 1) out)
+                                                     #.+queue-length-bits+)
+                                                in)))
+                  (when (= in out)
+                    (setf (svref queue out) '#.queue-sentinel))
+                  (unless keep-in-queue-p (setf (svref queue out2) nil))
+                  (return out-object)))))))
 
 (define-speedy-function %queue-flush (queue)
   (setf (svref queue 0) #.(+ (ash 1 +queue-length-bits+) 1)
@@ -230,17 +267,29 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%queue-empty-p queue))
 
-(defun enqueue (object queue)
+(defun enqueue-unsafe (object queue)
   "Enqueues OBJECT in QUEUE"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%enqueue object queue))
+
+(defun dequeue-unsafe (queue &optional (keep-in-queue-p t))
+  "Dequeues QUEUE.
+When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref in the queue,
+this is useful when the queue holds very big objects."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (%dequeue queue keep-in-queue-p))
+
+(defun enqueue (object queue)
+  "Enqueues OBJECT in QUEUE"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (%enqueue-safe object queue))
 
 (defun dequeue (queue &optional (keep-in-queue-p t))
   "Dequeues QUEUE.
 When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref in the queue,
 this is useful when the queue holds very big objects."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%dequeue queue keep-in-queue-p))
+  (%dequeue-safe queue keep-in-queue-p))
 
 (defun queue-to-list (queue)
   "Conver a queue to a list, the first of the returned list is the first item to be popped."
@@ -281,14 +330,6 @@ this is useful when the queue holds very big objects."
 (defun queue-flush (queue)
   "Make `queue' empty"
   (%queue-flush queue))
-
-
-;; ------- thread safe version -------
-
-
-
-
-
 
 
 #|
@@ -439,4 +480,58 @@ this is useful when the queue holds very big objects."
             (cl:push i list-queue))
           (dotimes (i num)
             (cl:pop list-queue)))))
+|#
+
+#|
+(defparameter *times* (loop for i from 3 to 8
+                            collect (expt 10 i)))
+
+(dolist (num *times*) ; about 15s in sbcl for 10^9
+  (format t "LIFO queue, unsafe push+pop, without consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (let ((queue (make-queue num)))
+    (time (progn
+            (dotimes (i num)
+              (enqueue-unsafe i queue))
+            (dotimes (i num)
+              (dequeue-unsafe queue nil))))))
+
+(dolist (num *times*) ; about 17s in sbcl for 10^9
+  (format t "LIFO queue, unsafe push+pop, with consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (time (let ((queue (make-queue num)))
+          (dotimes (i num)
+            (enqueue-unsafe i queue))
+          (dotimes (i num)
+            (dequeue-unsafe queue nil)))))
+
+(dolist (num *times*) ; about 26s in sbcl for 10^9
+  (format t "LIFO queue, safe push+pop, without consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (let ((queue (make-queue num)))
+    (time (progn
+            (dotimes (i num)
+              (enqueue i queue))
+            (dotimes (i num)
+              (dequeue queue nil))))))
+
+(dolist (num *times*) ; about 28s in sbcl for 10^9
+  (format t "LIFO queue, safe push+pop, without consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (time (let ((queue (make-queue num)))
+          (dotimes (i num)
+            (enqueue i queue))
+          (dotimes (i num)
+            (dequeue queue nil)))))
+
+#+:sbcl
+(dolist (num *times*) ; about 3.3s in sbcl for 10^8, failed for 10^9
+  (format t "sb-concurrency's Singly-linked queue, safe push+pop, with consing timed: 10^~d times.~%" (log num 10))
+  (sb-ext:gc :full t)
+  (let ((queue (sb-concurrency:make-queue)))
+    (time (progn
+            (dotimes (i num)
+              (sb-concurrency:enqueue i queue))
+            (dotimes (i num)
+              (sb-concurrency:dequeue queue))))))
 |#
