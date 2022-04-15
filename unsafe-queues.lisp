@@ -4,9 +4,10 @@
 (declaim (inline queue-empty-p))
 (declaim (inline %unsafe-queue-empty-p))
 
-(defvar *overflow-flag* #.cl-speedy-lifo:*overflow-flag*)
-(defvar *underflow-flag* #.cl-speedy-lifo:*underflow-flag*)
-(defvar *enlarge-size* (the single-float 1.5))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *overflow-flag* #.cl-speedy-lifo:*overflow-flag*)
+  (defvar *underflow-flag* #.cl-speedy-lifo:*underflow-flag*)
+  (defvar *enlarge-size* 1.5))
 
 (defun %singularp (lst)
   "Test if `lst' has only one element.
@@ -48,12 +49,11 @@ but it's enough in this lib since the car of lst will never be nil."
 (defmethod enqueue (object (queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (push-queue queue-list) queue
-    (declare (single-float *enlarge-size*))
     (declare (list queue-list))
     ;; when push-queue is full, add a new longer queue at the end of the list
     (when (cl-speedy-queue:queue-full-p push-queue)
       (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
-                                               *enlarge-size*))))
+                                               #.*enlarge-size*))))
              (new-queue (cl-speedy-queue:make-queue new-len)))
         (%list-queue-enqueue new-queue queue-list)
         (setf push-queue new-queue)))

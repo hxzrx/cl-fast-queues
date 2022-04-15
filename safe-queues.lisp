@@ -31,7 +31,6 @@
     (apply #'+ (mapcar #'cl-speedy-queue:queue-count
                        (%list-queue-contents (safe-fifo-queue-list queue))))))
 
-
 (defmethod queue-empty-p ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (bt:with-lock-held ((safe-fifo-lock queue))
@@ -45,13 +44,12 @@
 (defmethod enqueue (object (queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (push-queue queue-list push-queue-len waitp lock cvar) queue
-    (declare (single-float *enlarge-size*))
     (declare (fixnum push-queue-len))
     (bt:with-lock-held (lock)
       ;; when push-queue is full, add a new longer queue at the end of the list
       (when (cl-speedy-queue:queue-full-p push-queue)
         (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
-                                                 *enlarge-size*))))
+                                                 #.*enlarge-size*))))
                (new-queue (cl-speedy-queue:make-queue new-len)))
           (%list-queue-enqueue new-queue queue-list)
           (setf push-queue new-queue)))
