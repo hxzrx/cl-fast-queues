@@ -22,15 +22,10 @@
 
 (cl:in-package #:cl-speedy-queue)
 
-(eval-when (:compile-toplevel)
-  (defvar queue-sentinel (make-symbol "EMPTY")))
-
-(defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
-;;:overflow-A6AC128A-4385-4C54-B384-8D687456C10A)
-
-(defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*)
-;;:underflow-80B88679-7DD0-499E-BAE9-673167980515)
-
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar queue-sentinel (make-symbol "EMPTY"))
+  (defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
+  (defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*))
 
 ;;; The functions in this file are dangerous. Good compilers will generate code that will
 ;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
@@ -157,7 +152,7 @@
       (prog1 (setf (svref queue in) object)
         (setf (svref queue 1) (%next-index in (length queue))))
       ;;(error 'queue-overflow-error :queue queue :item object)
-      *overflow-flag*
+      #.*overflow-flag*
       ))
 
 (define-speedy-function %dequeue (queue keep-in-queue-p &aux (out (%queue-out queue)))
@@ -167,7 +162,7 @@
   (let ((out-object (svref queue out)))
     (if (eq out-object '#.queue-sentinel)
         ;;(error 'queue-underflow-error :queue queue)
-        *underflow-flag*
+        #.*underflow-flag*
         (prog1 out-object
           (unless keep-in-queue-p (setf (svref queue out) nil))
           (setf (svref queue 0)
