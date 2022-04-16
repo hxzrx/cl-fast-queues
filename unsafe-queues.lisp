@@ -206,7 +206,6 @@ and the order of the returned list is the same as queue order. (so that they wil
 (defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (cur-queue queue-list) queue
-    (format t "queue: ~d~%" queue)
     (let ((res (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)))
       (if (and (eq res #.*underflow-flag*)
                (null (%singularp queue-list)))
