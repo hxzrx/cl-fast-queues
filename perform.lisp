@@ -135,7 +135,7 @@
 (dolist (len *lengths*)
   (format t "~&unsafe fifo, init-length: 10^~d.~%" (log len 10))
   (sb-ext:gc :full t)
-  (time (let ((queue (cl-fast-queues:make-unsafe-fifo len)))
+  (time (let ((queue (cl-fast-queues:make-unsafe-fifo :init-length len)))
           (dotimes (i *max-times*)
             (cl-fast-queues:enqueue i queue))
           (dotimes (i *max-times*)
