@@ -152,6 +152,7 @@
       (finish (cl-speedy-queue-safe:queue-flush queue))
       (is eq t (cl-speedy-queue-safe:queue-empty-p queue)))))
 
+#+:ignore
 (define-test speedy-queue-safe-unsafe-basic :parent speedy-queue-safe
   (let* ((len 20)
          (queue (cl-speedy-queue-safe:make-queue len))
@@ -261,6 +262,7 @@
                     (loop for element in (subseq lst 0 count)
                           do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
       ))))
+
 
 (defparameter *enqueue-sum* (make-atomic 0))
 (define-test speedy-queue-safe-enqueue-threads :parent speedy-queue-safe
