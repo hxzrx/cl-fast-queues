@@ -5,6 +5,11 @@
 ;;;; with the higher half bits show the pop place
 ;;;; and the lower half bits show the push place.
 
+(ql:quickload :cl-speedy-lifo)
+(ql:quickload :atomics)
+(ql:quickload :bordeaux-threads)
+(ql:quickload :parachute)
+
 (cl:defpackage #:cl-speedy-queue-safe
   (:use :cl)
   (:export
@@ -112,6 +117,12 @@
   ;; lower 32 bits
   ;;(the fixnum (ldb (byte 31 0) (the fixnum (svref queue 1))))
   (the fixnum (logand (the fixnum (svref queue 0)) #.+low-bits-ones+)))
+
+(define-speedy-function %in=out (flag-num)
+  "Test if a queue's first element shows that the enqueue place equal to dequeue place."
+  (declare (fixnum flag-num))
+  (= (the fixnum (ash flag-num #.(- +queue-length-bits+)))
+     (the fixnum (logand flag-num #.+low-bits-ones+))))
 
 (define-speedy-function %queue-peek (queue)
   "Dereference QUEUE's exit pointer"
@@ -548,3 +559,151 @@ this is useful when the queue holds very big objects."
             (dotimes (i num)
               (sb-concurrency:dequeue queue))))))
 |#
+
+
+
+
+
+(defpackage #:cl-speedy-queue-safe-tests
+  (:use #:cl #:parachute #:cl-speedy-queue-safe)
+  (:export #:test))
+
+(in-package :cl-speedy-queue-safe-tests)
+
+(defun make-atomic (init-value)
+  "Return a structure that can be cas'ed"
+  #+ccl
+  (make-array 1 :initial-element init-value)
+  #-ccl
+  (cons init-value nil))
+
+(defmacro atomic-place (atomic-structure)
+  "Return value of atomic-fixnum in macro."
+  #+ccl
+  `(svref ,atomic-structure 0)
+  #-ccl
+  `(car ,atomic-structure))
+
+(defmacro atomic-incf (place &optional (diff 1))
+  "Atomic incf fixnum in `place' with `diff' and return OLD value."
+  #+sbcl
+  `(sb-ext:atomic-incf ,place ,diff)
+  #+ccl
+  `(let ((old ,place))
+     (ccl::atomic-incf-decf ,place ,diff)
+     old))
+
+(defun make-random-list (len &optional (max 5))
+  (loop for i below len
+        collect (random max)))
+
+(define-test speedy-queue-safe)
+
+(define-test speedy-queue-safe-single-thread :parent speedy-queue-safe
+  (let* ((len 20)
+         (queue (cl-speedy-queue-safe:make-queue len))
+         (lst (loop for i from 0 below len collect i)))
+    (is = 0 (cl-speedy-queue-safe:queue-count queue))
+    (is = len (cl-speedy-queue-safe:queue-length queue))
+    (is-values (cl-speedy-queue-safe:queue-peek queue) (eql nil) (eql nil))
+    (false (cl-speedy-queue-safe:queue-full-p queue))
+    (true (cl-speedy-queue-safe:queue-empty-p queue))
+    (is equal nil (cl-speedy-queue-safe:queue-to-list queue))
+    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
+    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
+    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
+    (loop for item in lst
+          for idx from 0
+          for count from 1
+          do (progn (finish (cl-speedy-queue-safe:enqueue item queue))
+                    (is = count (cl-speedy-queue-safe:queue-count queue))
+                    (is = len (cl-speedy-queue-safe:queue-length queue))
+                    (is-values (cl-speedy-queue-safe:queue-peek queue) (eql (first lst)) (eql t))
+                    (if (= count len)
+                        (true (cl-speedy-queue-safe:queue-full-p queue))
+                        (false (cl-speedy-queue-safe:queue-full-p queue)))
+                    (false (cl-speedy-queue-safe:queue-empty-p queue))
+                    (is equal (subseq lst 0 count) (cl-speedy-queue-safe:queue-to-list queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
+                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
+                    (loop for element in (subseq lst 0 count)
+                          do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
+                    (loop for element in (subseq lst count len)
+                          do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
+                    ))
+    (loop for idx from 0 below len
+          for count from 1
+          do (progn (finish (cl-speedy-queue-safe:dequeue queue))
+                    (is = (- len count) (cl-speedy-queue-safe:queue-count queue))
+                    (is = len (cl-speedy-queue-safe:queue-length queue))
+                    (if (= count len)
+                        (is-values (cl-speedy-queue-safe:queue-peek queue) (eql nil) (eql nil))
+                        (is-values (cl-speedy-queue-safe:queue-peek queue) (eql (nth count lst)) (eql t)))
+                    (false (cl-speedy-queue-safe:queue-full-p queue))
+                    (if (= count len)
+                        (true (cl-speedy-queue-safe:queue-empty-p queue))
+                        (false (cl-speedy-queue-safe:queue-empty-p queue)))
+                    (is equal (subseq lst count len) (cl-speedy-queue-safe:queue-to-list queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
+                    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
+                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue::queue-sentinel queue))
+                    (loop for element in (subseq lst count len)
+                          do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
+                    (loop for element in (subseq lst 0 count)
+                          do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
+      ))))
+
+(defparameter *enqueue-sum* (make-atomic 0))
+(defparameter *dequeue-sum* (make-atomic 0))
+
+(define-test speedy-queue-safe-dequeue-enqueue-mixed-threads-kept :parent speedy-queue-safe
+  #+sbcl (sb-ext:gc :full t)
+  #+ccl (ccl:gc)
+  (dotimes (i 10000);*loop-test-times*)
+    (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
+    (setf *enqueue-sum* (make-atomic 0))
+    (setf *dequeue-sum* (make-atomic 0))
+    (let* ((n 6);(+ 2 (random 20))) ; queue length
+           (queue (cl-speedy-queue-safe:make-queue n))
+           (push-threads nil)
+           (pop-threads nil)
+           (k 2);(random n)) ; fill num
+           (lst (list 3 1));(make-random-list k))
+           (total (apply #'+ lst)))
+      (assert (<= (length lst) (cl-speedy-queue-safe:queue-length queue)))
+      (dolist (element lst)
+        (let ((ele element)) ; make a bind as the var of element will change and will affect among the threads
+          (push (bt:make-thread #'(lambda ()
+                                    (let ((res (cl-speedy-queue-safe:enqueue ele queue)))
+                                      (if (integerp res)
+                                          (atomic-incf (atomic-place *enqueue-sum*) res)
+                                          (format t "~&To enqueue: ~d, ret: ~d, queue: ~d~%" ele res queue)))))
+                push-threads)))
+
+      (dolist (element lst)
+        (push (bt:make-thread #'(lambda ()
+                                  (let ((res (cl-speedy-queue-safe:dequeue queue t)))
+                                    (if (integerp res)
+                                        (atomic-incf (atomic-place *dequeue-sum*) res)
+                                        #+:ignore(format t "~&Dequeue return: ~d, queue: ~d~%" res queue)))))
+              pop-threads))
+
+      (dolist (thread push-threads)
+        (bt:join-thread thread))
+      (dolist (thread pop-threads)
+        (bt:join-thread thread))
+
+      (is = total (atomic-place *enqueue-sum*))
+      (is = total (+ (atomic-place *dequeue-sum*)
+                     (apply #'+ (cl-speedy-queue-safe:queue-to-list queue))))
+
+      (unless (cl-speedy-queue-safe:queue-empty-p queue)
+        (format t "~&queue not empty: ~d~%elements: ~d~%" queue (cl-speedy-queue-safe:queue-to-list queue)))
+      (unless (= total (+ (atomic-place *dequeue-sum*)
+                          (apply #'+ (cl-speedy-queue-safe:queue-to-list queue))))
+        (format t "~&~%List: ~d~%" lst)
+        (format t "~&items num: ~d, enqueue sum: ~d, expect sum: ~d~%" k (atomic-place *enqueue-sum*) total)
+        (format t "~&Queue count: ~d~%" (cl-speedy-queue-safe:queue-count queue))
+        (format t "~&Queue: ~d~%~%" queue))
+      )))
