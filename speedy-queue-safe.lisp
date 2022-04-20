@@ -1,3 +1,4 @@
+;;;; Test failed, DO NOT use it
 ;;;; This file was initially copied from speedy-queue.lisp
 ;;;; In this safe version, for the sake of optimization,
 ;;;; a fixnum takes place of the first of the array,
@@ -205,8 +206,14 @@ So, the queue-length should be at least 2.
                 (if (atomics:cas (svref queue 0) old-flag new-flag)
                     (return (setf (svref queue in) object))
                     #+:ignore(return #.*overflow-flag*)))
-              (if (atomics:cas (svref queue 0) old-flag old-flag) ; there's a race in the "or" of the "if" above
-                  (return #.*overflow-flag*))
+              ;; queue full, when in == out && in-place != #.sentinel. be careful, there's a race
+              (let* ((new-flag (the fixnum (svref queue 0)))
+                     (new-out (ash new-flag #.(- +queue-length-bits+)))
+                     (new-in (the fixnum (logand new-flag #.+low-bits-ones+))))
+                (if (and (= old-flag new-flag) ; still has a problem here
+                         (= new-out new-in)
+                         (not (eq (svref queue new-out) '#.queue-sentinel)))
+                    (return #.*overflow-flag*)))
               ))))
 
 (define-speedy-function %dequeue-safe (queue keep-in-queue-p) ; safe version
