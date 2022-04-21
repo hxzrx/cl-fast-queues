@@ -30,15 +30,29 @@
 
 (cl:in-package #:cl-speedy-queue-safe)
 
+;; The 0th palce of an array is the flag of the queue, which devides into:
+;;      ﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍
+;;     |  dequeue bits  |  enqueue bits  |  unused bit  |  full bit   |
+;;      ﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉
+;; bits: fixnumLen/2-1    fixnumLen/2-1         1             1
+;;
+;; full bit = 1 shows that the queue is full.
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defvar queue-sentinel (make-symbol "EMPTY"))
-  (defvar +fixnum-bits+ (floor (log most-positive-fixnum 2)))  ; 62 for sbcl x86-64, 60 for ccl x86-64
-  (defvar +queue-length-bits+ (floor (/ +fixnum-bits+ 2))) ; 31
-  (defvar +low-bits-ones+  (1- (expt 2 +queue-length-bits+))) ; 2147483647, 31 bits of ones
-  (defvar +high-bits-ones+ (ash +low-bits-ones+ +queue-length-bits+)) ; 31 higher bits of ones, 31 lower bits of zeros
-  (defvar +max-queue-length+ +low-bits-ones+) ; 2147483647
-  (defvar *overflow-flag* cl-speedy-lifo:*overflow-flag*)
-  (defvar *underflow-flag* cl-speedy-lifo:*underflow-flag*))
+  (defparameter *bits-count* (integer-length most-negative-fixnum))  ; 62 for sbcl x86-64, 60 for ccl x86-64
+  (defparameter *queue-length-bits* (1- (floor (/ *bits-count* 2)))) ; 30
+
+  (defparameter *enqueue-start* 2)
+  (defparameter *dequeue-start* (+ *enqueue-start* *queue-length-bits*)) ; 32 (from 0, so it's the 33nd place)
+
+  (defparameter *enqueue-mask*  (ash (1- (expt 2 *queue-length-bits*)) *enqueue-start*)) ; 4294967292, 1111...11100, 30 ones
+  (defparameter *dequeue-mask* (ash *enqueue-mask* *queue-length-bits*)) ; 4611686014132420608, 111...111000...000, 30 1s, 32 0s
+  (defparameter *full-queue-mask* 1)
+
+  (defparameter *max-queue-length* (1- (expt 2 *queue-length-bits*))) ; 1073741823
+
+  (defparameter *overflow-flag* cl-speedy-lifo:*overflow-flag*)
+  (defparameter *underflow-flag* cl-speedy-lifo:*underflow-flag*))
 
 ;;; The functions in this file are dangerous. Good compilers will generate code that will
 ;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
@@ -52,6 +66,7 @@
   `(progn (declaim (inline ,name))
           (defun ,name ,args
             (declare (optimize (speed 3) (safety 0) (debug 0)))
+            ;;(declare (optimize (speed 0) (safety 3) (debug 3)))
             ,@body)))
 
 ;;; Queue Condition API
@@ -80,10 +95,9 @@
   "Creates a new queue of maximum size LENGTH, LENGTH should be at least two."
   (when (typep length 'fixnum)
     (locally (declare (fixnum length))
-      (when (<= 2 length #.+max-queue-length+)
+      (when (<= 2 length #.*max-queue-length*) ; this should move to the public make-queue
         (let ((queue (make-array (the fixnum (+ 1 length)) :initial-element nil)))
-          (setf (svref queue 0) #.(+ (ash 1 +queue-length-bits+) 1)
-                (svref queue 1) '#.queue-sentinel)
+          (setf (svref queue 0) #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))) ; 4294967300, 1000...000100
           (return-from %make-queue queue)))))
   (error 'queue-length-error :attempted-length length))
 
@@ -92,7 +106,7 @@
 ;;;   it'll probably take less time to write than this comment did. -- Adlai
 
 (define-speedy-function %queue-length (queue)
-  "Returns QUEUE's maximum length"
+  "Returns QUEUE's maximum length."
   (the fixnum (- (length (the simple-vector queue)) 1)))
 
 (define-speedy-function queuep (x)
@@ -100,52 +114,49 @@
   (when (simple-vector-p x)
     (let* ((flag   (the fixnum (svref x 0)))
            (length (the fixnum (length x)))
-           (head   (the fixnum (ash flag #.(- +queue-length-bits+)))) ; -31
-           (tail   (the fixnum (logand flag #.+low-bits-ones+))))
+           (head   (the fixnum (ash flag #.(- *dequeue-start*))))
+           (tail   (the fixnum (ash (logand flag #.*enqueue-mask*)
+                                    #.(- *enqueue-start*))))
+           (fullp  (the fixnum (logand flag *full-queue-mask*))))
       (and (<= 1 head length)
            (<= 1 tail length)
-           (<= length #.+low-bits-ones+)))))
+           (<= length #.*max-queue-length*)
+           (if fullp (= head tail) t)))))
 
 (define-speedy-function %queue-out (queue)
   "QUEUE's exit pointer"
-  ;; higher 32 bits
-  ;;(the fixnum (ldb (byte 31 32) (the fixnum (svref queue 0))))
-  (the fixnum (ash (the fixnum (svref queue 0)) #.(- +queue-length-bits+)))) ; -31
+  (the fixnum (ash (logand (the fixnum (svref queue 0))
+                           #.*dequeue-mask*)
+                   #.(- *dequeue-start*))))
 
 (define-speedy-function %queue-in (queue)
   "QUEUE's entry pointer"
-  ;; lower 32 bits
-  ;;(the fixnum (ldb (byte 31 0) (the fixnum (svref queue 1))))
-  (the fixnum (logand (the fixnum (svref queue 0)) #.+low-bits-ones+)))
+  (the fixnum (ash (logand (the fixnum (svref queue 0))
+                           #.*enqueue-mask*)
+                   #.(- *enqueue-start*))))
 
 (define-speedy-function %in=out (flag-num)
   "Test if a queue's first element shows that the enqueue place equal to dequeue place."
   (declare (fixnum flag-num))
-  (= (the fixnum (ash flag-num #.(- +queue-length-bits+)))
-     (the fixnum (logand flag-num #.+low-bits-ones+))))
+  (= (the fixnum (ash (logand flag-num #.*enqueue-mask*) #.(- *enqueue-start*)))
+     (the fixnum (ash (logand flag-num #.*dequeue-mask*) #.(- *dequeue-start*)))))
+
+(define-speedy-function %out=in (flag-num)
+  (%in=out flag-num))
 
 (define-speedy-function %queue-peek (queue)
   "Dereference QUEUE's exit pointer"
   (svref queue (%queue-out queue)))
 
-(define-speedy-function %queue-zero-p (queue)
-  "Checks whether QUEUE's theoretical length is zero"
-  (= (the fixnum (%queue-in queue))
-     (the fixnum (%queue-out queue))))
+(define-speedy-function %queue-full-p (queue)
+  "Checks whether QUEUE is effectively full"
+  (= (logand (svref queue 0) *full-queue-mask*) 1))
 
 (define-speedy-function %queue-empty-p (queue)
   "Checks whether QUEUE is effectively empty"
-  (eq (svref queue (%queue-out queue)) '#.queue-sentinel))
-
-(define-speedy-function %queue-full-p (queue)
-  "Checks whether QUEUE is effectively full"
-  ;; We keep the exit reference around because we do two checks
-  (let ((out (%queue-out queue)))
-    (declare (fixnum out))
-    ;; Are the entry and exit pointers the same?
-    (when (= out (the fixnum (%queue-in queue)))
-      ;; Is there a real value at the exit pointer?
-      (not (eq (svref queue out) '#.queue-sentinel)))))
+  (let ((flag (svref queue 0)))
+    (and (%in=out flag)
+         (= (logand flag *full-queue-mask*) 0))))
 
 (define-speedy-function %queue-count (queue)
   "Returns QUEUE's effective length"
@@ -154,8 +165,7 @@
     (declare (fixnum length))
     (cond ((plusp length) length)                         ; Raw length is OK
           ((or (minusp length)                            ; Entry pointer is before exit pointer,
-               (not (eq (%queue-peek queue)               ;   or the queue is full if the pointers
-                        '#.queue-sentinel)))              ;   don't point to the sentinel value, so
+               (%queue-full-p queue))                     ;   or the queue is full
            (the fixnum (+ length (%queue-length queue)))) ; Add the effective length
           (t 0))))                                        ; Queue is empty -- return zero
 
@@ -163,95 +173,80 @@
   (declare (fixnum current-index queue-real-length))
   (let ((new-index (1+ current-index)))                 ; Simply increment the index
     (declare (fixnum new-index))
-    (the fixnum (if (= new-index queue-real-length) 1 new-index))))  ; Overflow to 1 if necessary
+    (the fixnum (if (= new-index queue-real-length)
+                    1                                   ; Overflow to 1 if necessary
+                    new-index))))
 
-#+:ignore
-(define-speedy-function %enqueue (object queue) ; unsafe version
-  "Enqueue OBJECT and increment QUEUE's entry pointer"
-  (let* ((flag (the fixnum (svref queue 0)))
-         (out (ash flag #.(- +queue-length-bits+)))
-         (in (the fixnum (logand flag #.+low-bits-ones+))))
-    (if (or (not (= in out))
-            (eq (svref queue in) '#.queue-sentinel))
-        (prog1 (setf (svref queue in) object)
-          (setf (svref queue 0) (the fixnum (+ (logand flag #.+high-bits-ones+)
-                                               (%next-index in (length (the (simple-vector *) queue)))))))
-        #.*overflow-flag*
-        )))
+(define-speedy-function %out-index (flag)
+  (declare (fixnum flag))
+  (the fixnum (ash (logand flag #.*dequeue-mask*) #.(- *dequeue-start*))))
 
-#+:ignore
-(define-speedy-function %dequeue (queue keep-in-queue-p) ; unsafe version
-  "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
-  (let* ((flag (the fixnum (svref queue 0)))
-         (out (ash flag #.(- +queue-length-bits+)))
-         (in  (the fixnum (logand flag #.+low-bits-ones+)))
-         (out-object (svref queue out)))
-    (if (eq out-object '#.queue-sentinel)
-        #.*underflow-flag*
-        (prog1 out-object
-          (unless keep-in-queue-p (setf (svref queue out) nil))
-          (setf (svref queue 0)
-                (the fixnum (+ (ash (if (= (incf out) (length (the (simple-vector *) queue)))
-                                        (setf out 1) out)
-                                    #.+queue-length-bits+)
-                               in)))
-          (when (= in out)
-            (setf (svref queue out) '#.queue-sentinel))))))
+(define-speedy-function %in-index (flag)
+  (declare (fixnum flag))
+  (the fixnum (ash (logand flag #.*enqueue-mask*) #.(- *enqueue-start*))))
 
-(define-speedy-function %enqueue-safe (object queue) ; safe version
+(define-speedy-function %fullp (flag)
+  (declare (fixnum flag))
+  (= (logand flag #.*full-queue-mask*) 1))
+
+(define-speedy-function %decode-flag (flag)
+  "(values dequeue-index enqueue-index full-status)"
+  (declare (fixnum flag))
+  (values (the fixnum (ash (logand flag #.*dequeue-mask*) #.(- *dequeue-start*)))
+          (the fixnum (ash (logand flag #.*enqueue-mask*) #.(- *enqueue-start*)))
+          (the fixnum (logand flag #.*full-queue-mask*))))
+
+(define-speedy-function %encode-flag (out in full)
+  (declare (fixnum out in full))
+  (the fixnum (+ (ash out #.*dequeue-start*)
+                 (ash in  #.*enqueue-start*)
+                 full)))
+
+(define-speedy-function %enqueue (object queue) ; safe version
   "Enqueue OBJECT and increment QUEUE's entry pointer.
 Note that when queue-length of queue is 1, after an calling of enqueue,
 new-flag will still equal to old-flag, and another thread may flush the previous result,
 this will lead to an hard-to-debug problem.
 So, the queue-length should be at least 2.
 "
-  (loop (let* ((old-flag (the fixnum (svref queue 0)))
-               (out (ash old-flag #.(- +queue-length-bits+)))
-               (in (the fixnum (logand old-flag #.+low-bits-ones+))))
-          ;;(format t "In speedy-queue, enqueue: ~d, queue: ~d~%" object queue)
-          ;; if queue is in empty or intermediate state (3 states: empty, intermediate, full)
-          (if (or (not (= in out)) ; when in = out, the queue is full or empty
-                  (eq (svref queue in) '#.queue-sentinel)) ; empty
-              (let ((new-flag (the fixnum (+ (logand old-flag #.+high-bits-ones+)
-                                             (%next-index in (length (the (simple-vector *) queue)))))))
-                (if (atomics:cas (svref queue 0) old-flag new-flag)
-                    (return (setf (svref queue in) object))
-                    #+:ignore(return #.*overflow-flag*)))
-              ;; queue full, when in == out && in-place != #.sentinel. be careful, there's a race
-              (let* ((new-flag (the fixnum (svref queue 0)))
-                     (new-out (ash new-flag #.(- +queue-length-bits+)))
-                     (new-in (the fixnum (logand new-flag #.+low-bits-ones+))))
-                (if (and (= old-flag new-flag) ; still has a problem here
-                         (= new-out new-in)
-                         (not (eq (svref queue new-out) '#.queue-sentinel)))
-                    (return #.*overflow-flag*)))
-              ))))
+  (loop (let ((old-flag (the fixnum (svref queue 0))))
+          (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
+            ;;(format t "In speedy-queue, enqueue: ~d, queue: ~d~%" object queue)
+            (if (= old-full 1) ; test if queue is full
+                ;; full, enqueue will overflow, cas to make sure it's really full
+                (when (atomics:cas (svref queue 0) old-flag old-flag) ; enqueue to a full queue is idempotent
+                  (return #.*overflow-flag*))
+                ;; not full, enqueue will success if cas return true.
+                (let* ((new-in   (%next-index old-in (length (the (simple-vector *) queue))))
+                       (new-full (if (= new-in old-out) 1 0))
+                       (new-flag (%encode-flag old-out new-in new-full)))
+                  (when (atomics:cas (svref queue 0) old-flag new-flag)
+                    (return (setf (svref queue old-in) object)))))))))
 
-(define-speedy-function %dequeue-safe (queue keep-in-queue-p) ; safe version
+(define-speedy-function %dequeue (queue keep-in-queue-p) ; safe version
   "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
-  (loop (let* ((old-flag (the fixnum (svref queue 0)))
-               (out (ash old-flag #.(- +queue-length-bits+)))
-               (out2 out)
-               (in  (the fixnum (logand old-flag #.+low-bits-ones+)))
-               (out-object (svref queue out)))
-          (if (eq out-object '#.queue-sentinel)
-          ;(if (atomics:cas (svref queue out) out-object '#.queue-sentinel)
-              (return #.*underflow-flag*)
-              (let ((new-flag (the fixnum (+ (ash (if (= (incf out) (length (the (simple-vector *) queue)))
-                                                      (setf out 1) out)
-                                                  #.+queue-length-bits+)
-                                             in))))
-                (when (atomics:cas (svref queue 0) old-flag new-flag)
-                  (when (= in out)
-                    (setf (svref queue out) '#.queue-sentinel))
-                  (unless (or keep-in-queue-p (= in out))
-                    (setf (svref queue out2) nil))
-                  (return out-object)))))))
+  (loop (let ((old-flag (the fixnum (svref queue 0))))
+          (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
+            (if (and (= old-out old-in) (= old-full 0)) ; test if queue is empty
+                ;; empty, dequeue will underflow, cas to make sure it's really empty
+                (when (atomics:cas (svref queue 0) old-flag old-flag) ; dequeue to an empty queue is idempotent
+                  (return #.*underflow-flag*))
+                ;; not empty, dequeue will success if cas return true
+                (let* ((new-out (if (= (1+ old-out) (length (the (simple-vector *) queue)))
+                                    1
+                                    (1+ old-out)))
+                       (new-flag (%encode-flag new-out old-in 0)))
+                  (when (atomics:cas (svref queue 0) old-flag new-flag)
+                    (let ((result (svref queue old-out)))
+                      (unless keep-in-queue-p
+                        (setf (svref queue old-out) nil))
+                      (return result)))))))))
 
 (define-speedy-function %queue-flush (queue)
-  (setf (svref queue 0) #.(+ (ash 1 +queue-length-bits+) 1)
-        (svref queue 1) '#.queue-sentinel)
-  queue)
+  (loop for old-flag = (the fixnum (svref queue 0))
+        with new-flag = #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))
+        until (atomics:cas (svref queue 0) old-flag new-flag)
+        finally (return queue)))
 
 ;;; Now that all the backend functions are defined, we can define the API:
 
@@ -259,7 +254,12 @@ So, the queue-length should be at least 2.
   "Makes a queue of maximum size SIZE"
   (declare (fixnum size))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%make-queue size))
+  (if (<= 2 size #.*max-queue-length*)
+      (%make-queue size)
+      (if (> size #.*max-queue-length*)
+          (progn (warn "The size ~d exceeds the limit, will make a new queue with max size ~d" size #.*max-queue-length*)
+                 (%make-queue #.*max-queue-length*))
+          (error 'queue-length-error :attempted-length size))))
 
 (defun queue-count (queue)
   "Returns the current size of QUEUE"
@@ -274,10 +274,9 @@ So, the queue-length should be at least 2.
 (defun queue-peek (queue)
   "Returns the next item that would be dequeued without dequeueing it."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (let ((peek (%queue-peek queue)))
-    (if (eq peek '#.queue-sentinel)
-        (values nil nil)
-        (values peek t))))
+  (if (%queue-empty-p queue)
+      (values nil nil)
+      (values (%queue-peek queue) t)))
 
 (defun queue-full-p (queue)
   "Returns NIL if more items can be enqueued."
@@ -289,31 +288,17 @@ So, the queue-length should be at least 2.
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%queue-empty-p queue))
 
-#+:ignore
-(defun enqueue-unsafe (object queue)
-  "Enqueues OBJECT in QUEUE"
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%enqueue object queue))
-
-#+:ignore
-(defun dequeue-unsafe (queue &optional (keep-in-queue-p t))
-  "Dequeues QUEUE.
-When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref in the queue,
-this is useful when the queue holds very big objects."
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%dequeue queue keep-in-queue-p))
-
 (defun enqueue (object queue)
   "Enqueues OBJECT in QUEUE"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%enqueue-safe object queue))
+  (%enqueue object queue))
 
 (defun dequeue (queue &optional (keep-in-queue-p t))
   "Dequeues QUEUE.
 When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref in the queue,
 this is useful when the queue holds very big objects."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%dequeue-safe queue keep-in-queue-p))
+  (%dequeue queue keep-in-queue-p))
 
 (defun queue-to-list (queue)
   "Conver a queue to a list, the first of the returned list is the first item to be popped."
