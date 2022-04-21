@@ -23,5 +23,16 @@
   :serial t
   :depends-on (:cl-fast-queues
                :parachute)
-  :components ((:file "tests"))
+  :components ((:module "test"
+                :serial t
+                :components ((:file "package")
+                             (:file "specials")
+                             (:file "utils")
+                             (:file "speedy-queue")
+                             (:file "list-queue")
+                             (:file "unsafe-fifo")
+                             (:file "unsafe-lifo")
+                             (:file "safe-fifo")
+                             (:file "safe-lifo")
+                             )))
   :perform (test-op (o s) (uiop:symbol-call :parachute :test :cl-fast-queues-tests)))
