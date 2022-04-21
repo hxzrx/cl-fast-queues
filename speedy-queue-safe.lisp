@@ -1,9 +1,50 @@
-;;;; Test failed, DO NOT use it
-;;;; This file was initially copied from speedy-queue.lisp
-;;;; In this safe version, for the sake of optimization,
-;;;; a fixnum takes place of the first of the array,
-;;;; with the higher half bits show the pop place
-;;;; and the lower half bits show the push place.
+;;;; Test failed, DO NOT use it. modification after compare-and-swap is not atomic.
+
+;; Design:
+;; This safe queue keeps its enqueue place, dequeue place and full flag in a fixnum in the head of an simple-array.
+;;
+;; The 0th palce of an array is the flag of the queue, which is partitioned into:
+;;      ﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍
+;;     |  dequeue bits  |  enqueue bits  |  unused bit  |  full bit   |
+;;      ﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉
+;; bits: fixnumLen/2-1    fixnumLen/2-1         1             1
+;;
+;; full bit = 1 shows that the queue is full.
+;;
+;; Coding:
+;; This queue tried to do setf if compare-and-swap return true, and here's the pseudo-code:
+;;   (loop (let (...)
+;;            (when (compare-and-swap place old new)
+;;               (modify-something)
+;;               (return))))
+;;
+;; Objective: We hope that the items returned by push threads will be those items enqueued.
+;;
+;; Result: FAIL
+;;
+;; Analyze:
+;; The table below shows how this code FAILS.
+;;   Suppose we have a queue, all push and pop operations are implemented with above codes
+;;   and they run in seperate threads.
+;; The test verifies this, with a very low probability.
+;;
+;; |---------------------------------------------------------------------|
+;; | thread |      time1      |      time2          |      time3         |
+;; |--------|-------|---------|-------|-------------|-------|------------|
+;; |        | flag  |  queue  | flag  |    queue    | flag  |   queue    |
+;; |--------|-------|---------|-------|-------------|-------|------------|
+;; |  push  | 1/2/0 | nil nil |       |             | 2/2/0 |   1 nil    |
+;; |  pop   |       |         | 2/2/0 |   nil nil   |       |            |
+;; |--------|-------|---------|-------|-------------|-------|------------|
+;; | return |       |         |       | pop ret nil |       | push ret 1 |
+;; |---------------------------------------------------------------------|
+;;
+;; In this table, the "flag" columns show the status of enqueuePlace, dequeuePlace, isFull, for each time interval.
+;;    and the "queue" columns only show the queue contents when some thread modify the contents of the queue,
+;;    for each time interval.
+;;
+;; This example was took from a test, the result showed that the a thread pushed 1, but another thread popped NIL.
+
 
 (ql:quickload :cl-speedy-lifo)
 (ql:quickload :atomics)
@@ -30,13 +71,6 @@
 
 (cl:in-package #:cl-speedy-queue-safe)
 
-;; The 0th palce of an array is the flag of the queue, which devides into:
-;;      ﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍
-;;     |  dequeue bits  |  enqueue bits  |  unused bit  |  full bit   |
-;;      ﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉
-;; bits: fixnumLen/2-1    fixnumLen/2-1         1             1
-;;
-;; full bit = 1 shows that the queue is full.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *bits-count* (integer-length most-negative-fixnum))  ; 62 for sbcl x86-64, 60 for ccl x86-64
@@ -193,16 +227,10 @@
                  (ash in  #.*enqueue-start*)
                  full)))
 
-(define-speedy-function %enqueue (object queue) ; safe version
-  "Enqueue OBJECT and increment QUEUE's entry pointer.
-Note that when queue-length of queue is 1, after an calling of enqueue,
-new-flag will still equal to old-flag, and another thread may flush the previous result,
-this will lead to an hard-to-debug problem.
-So, the queue-length should be at least 2.
-"
+(define-speedy-function %enqueue (object queue)
+  "Enqueue OBJECT and increment QUEUE's entry pointer."
   (loop (let ((old-flag (the fixnum (svref queue 0))))
           (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
-            ;;(format t "In speedy-queue, enqueue: ~d, queue: ~d~%" object queue)
             (if (= old-full 1) ; test if queue is full
                 ;; full, enqueue will overflow, cas to make sure it's really full
                 (when (atomics:cas (svref queue 0) old-flag old-flag) ; enqueue to a full queue is idempotent
@@ -214,7 +242,7 @@ So, the queue-length should be at least 2.
                   (when (atomics:cas (svref queue 0) old-flag new-flag)
                     (return (setf (svref queue old-in) object)))))))))
 
-(define-speedy-function %dequeue (queue keep-in-queue-p) ; safe version
+(define-speedy-function %dequeue (queue keep-in-queue-p)
   "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
   (loop (let ((old-flag (the fixnum (svref queue 0))))
           (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
@@ -640,12 +668,12 @@ this is useful when the queue holds very big objects."
     (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
     (setf *enqueue-sum* (make-atomic 0))
     (setf *dequeue-sum* (make-atomic 0))
-    (let* ((n 6);(+ 2 (random 20))) ; queue length
+    (let* ((n (+ 10 (random 10))) ; queue length
            (queue (cl-speedy-queue-safe:make-queue n))
            (push-threads nil)
            (pop-threads nil)
-           (k 2);(random n)) ; fill num
-           (lst (list 3 1));(make-random-list k))
+           (k (random n)) ; fill num
+           (lst (make-random-list k))
            (total (apply #'+ lst)))
       (assert (<= (length lst) (cl-speedy-queue-safe:queue-length queue)))
       (dolist (element lst)
@@ -662,7 +690,7 @@ this is useful when the queue holds very big objects."
                                   (let ((res (cl-speedy-queue-safe:dequeue queue t)))
                                     (if (integerp res)
                                         (atomic-incf (atomic-place *dequeue-sum*) res)
-                                        #+:ignore(format t "~&Dequeue return: ~d, queue: ~d~%" res queue)))))
+                                        (format t "~&Dequeue return: ~d, queue: ~d~%" res queue)))))
               pop-threads))
 
       (dolist (thread push-threads)
