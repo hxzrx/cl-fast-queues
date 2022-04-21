@@ -65,8 +65,8 @@
 (defmacro define-speedy-function (name args &body body)
   `(progn (declaim (inline ,name))
           (defun ,name ,args
-            (declare (optimize (speed 3) (safety 0) (debug 0)))
-            ;;(declare (optimize (speed 0) (safety 3) (debug 3)))
+            ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+            (declare (optimize (speed 0) (safety 3) (debug 3)))
             ,@body)))
 
 ;;; Queue Condition API
@@ -81,15 +81,6 @@
   (:report (lambda (c s)
              (format s "Queue created with invalid length: ~S"
                      (queue-error-attempted-length c)))))
-(define-condition queue-overflow-error (queue-condition)
-  ((item :reader queue-overflow-extra-item :initarg :item))
-  (:report (lambda (c s)
-             (format s "Queue ~S is full, and can't have ~S stuffed into it"
-                     (queue-condition-queue c) (queue-overflow-extra-item c)))))
-(define-condition queue-underflow-error (queue-condition) ()
-  (:report (lambda (c s)
-             (format s "Queue ~S is empty, and can't be dequeued anymore"
-                     (queue-condition-queue c)))))
 
 (define-speedy-function %make-queue (length)
   "Creates a new queue of maximum size LENGTH, LENGTH should be at least two."
@@ -117,7 +108,7 @@
            (head   (the fixnum (ash flag #.(- *dequeue-start*))))
            (tail   (the fixnum (ash (logand flag #.*enqueue-mask*)
                                     #.(- *enqueue-start*))))
-           (fullp  (the fixnum (logand flag *full-queue-mask*))))
+           (fullp  (the fixnum (logand flag #.*full-queue-mask*))))
       (and (<= 1 head length)
            (<= 1 tail length)
            (<= length #.*max-queue-length*)
@@ -150,13 +141,13 @@
 
 (define-speedy-function %queue-full-p (queue)
   "Checks whether QUEUE is effectively full"
-  (= (logand (svref queue 0) *full-queue-mask*) 1))
+  (= (logand (svref queue 0) #.*full-queue-mask*) 1))
 
 (define-speedy-function %queue-empty-p (queue)
   "Checks whether QUEUE is effectively empty"
   (let ((flag (svref queue 0)))
     (and (%in=out flag)
-         (= (logand flag *full-queue-mask*) 0))))
+         (= (logand flag #.*full-queue-mask*) 0))))
 
 (define-speedy-function %queue-count (queue)
   "Returns QUEUE's effective length"
@@ -192,9 +183,9 @@
 (define-speedy-function %decode-flag (flag)
   "(values dequeue-index enqueue-index full-status)"
   (declare (fixnum flag))
-  (values (the fixnum (ash (logand flag #.*dequeue-mask*) #.(- *dequeue-start*)))
-          (the fixnum (ash (logand flag #.*enqueue-mask*) #.(- *enqueue-start*)))
-          (the fixnum (logand flag #.*full-queue-mask*))))
+  (values (the fixnum (ash (logand flag #.*dequeue-mask*) #.(- *dequeue-start*))) ; out
+          (the fixnum (ash (logand flag #.*enqueue-mask*) #.(- *enqueue-start*))) ; in
+          (the fixnum (logand flag #.*full-queue-mask*))))                        ; full
 
 (define-speedy-function %encode-flag (out in full)
   (declare (fixnum out in full))
@@ -244,7 +235,7 @@ So, the queue-length should be at least 2.
 
 (define-speedy-function %queue-flush (queue)
   (loop for old-flag = (the fixnum (svref queue 0))
-        with new-flag = #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))
+        with new-flag = #.(+ (ash 1 *dequeue-start*) (ash 1 #.*enqueue-start*))
         until (atomics:cas (svref queue 0) old-flag new-flag)
         finally (return queue)))
 
