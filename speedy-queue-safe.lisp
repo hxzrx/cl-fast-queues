@@ -240,6 +240,7 @@
                        (new-full (if (= new-in old-out) 1 0))
                        (new-flag (%encode-flag old-out new-in new-full)))
                   (when (atomics:cas (svref queue 0) old-flag new-flag)
+                    ;; the following setf will always success, but may be later
                     (return (setf (svref queue old-in) object)))))))))
 
 (define-speedy-function %dequeue (queue keep-in-queue-p)
@@ -256,6 +257,7 @@
                                     (1+ old-out)))
                        (new-flag (%encode-flag new-out old-in 0)))
                   (when (atomics:cas (svref queue 0) old-flag new-flag)
+                    ;; the svref operation may be earlier than the setf of this place
                     (let ((result (svref queue old-out)))
                       (unless keep-in-queue-p
                         (setf (svref queue old-out) nil))
