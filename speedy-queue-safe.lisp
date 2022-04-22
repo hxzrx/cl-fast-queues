@@ -1,15 +1,16 @@
+;;;; This seems correctly!
 ;;;; Test failed, DO NOT use it. modification after compare-and-swap is not atomic.
 
 ;; Design:
 ;; This safe queue keeps its enqueue place, dequeue place and full flag in a fixnum in the head of an simple-array.
 ;;
-;; The 0th palce of an array is the flag of the queue, which is partitioned into:
-;;      ﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍
-;;     |  dequeue bits  |  enqueue bits  |  unused bit  |  full bit   |
-;;      ﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉
-;; bits: fixnumLen/2-1    fixnumLen/2-1         1             1
+;; The 0th palce of the array is the flag of the queue, which is partitioned into:
+;;      ﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍﹍
+;;     |  dequeue bits  |  enqueue bits  |  unused bit  |  full indicator bit   |
+;;      ﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉﹉
+;; bits: fixnumLen/2-1    fixnumLen/2-1         1                   1
 ;;
-;; full bit = 1 shows that the queue is full.
+;; full indicator bit = 1 shows that the queue is full.
 ;;
 ;; Coding:
 ;; This queue tried to do setf if compare-and-swap return true, and here's the pseudo-code:
@@ -44,9 +45,6 @@
 ;;    for each time interval.
 ;;
 ;; This example was took from a test, the result showed that the a thread pushed 1, but another thread popped NIL.
-;;
-;; To improve this, store the enqueue place in the second place of the array,
-;; when doing dequeue, when compare-and-swap succeeds, loop until the dequeue place is less than the stored enqueue place.
 
 
 (ql:quickload :cl-speedy-lifo)
@@ -56,6 +54,7 @@
 
 (cl:defpackage #:cl-speedy-queue-safe
   (:use :cl)
+  (:nicknames :safe-queue)
   (:export
    :make-queue
    :queue-to-list
@@ -82,16 +81,15 @@
   (defparameter *enqueue-start* 2)
   (defparameter *dequeue-start* (+ *enqueue-start* *queue-length-bits*)) ; 32 (from 0, so it's the 33nd place)
 
-  (defparameter *max-queue-length* (- (expt 2 *queue-length-bits*) 2)) ; 1073741822, #b111111111111111111111111111110
-
-  (defparameter *enqueue-mask*  (ash *max-queue-length* *enqueue-start*)) ; 4294967288, 1111...111000, 29 ones
-  (defparameter *dequeue-mask* (ash *enqueue-mask* *queue-length-bits*)) ; 4611686009837453312, 111...111000...000, 29 1s, 33 0s
+  (defparameter *enqueue-mask*  (ash (1- (expt 2 *queue-length-bits*)) *enqueue-start*)) ; 4294967292, 1111...11100, 30 ones
+  (defparameter *dequeue-mask* (ash *enqueue-mask* *queue-length-bits*)) ; 4611686014132420608, 111...111000...000, 30 1s, 32 0s
   (defparameter *full-queue-mask* 1)
 
-
+  (defparameter *max-queue-length* (1- (expt 2 *queue-length-bits*))) ; 1073741823
 
   (defparameter *overflow-flag* cl-speedy-lifo:*overflow-flag*)
-  (defparameter *underflow-flag* cl-speedy-lifo:*underflow-flag*))
+  (defparameter *underflow-flag* cl-speedy-lifo:*underflow-flag*)
+  (defparameter *dummy* '!dummy!))
 
 ;;; The functions in this file are dangerous. Good compilers will generate code that will
 ;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
@@ -123,12 +121,13 @@
 
 (define-speedy-function %make-queue (length)
   "Creates a new queue of maximum size LENGTH, LENGTH should be at least two."
-  (when (<= 2 length #.*max-queue-length*) ; this should move to the public make-queue
-    (let ((queue (make-array (the fixnum (+ 2 length)) :initial-element nil)))
-      (setf (svref queue 0)
-            #.(+ (ash 2 *dequeue-start*)
-                 (ash 2 *enqueue-start*))) ; 8589934600, 1000...0001000
-      queue)))
+  (when (typep length 'fixnum)
+    (locally (declare (fixnum length))
+      (when (<= 2 length #.*max-queue-length*) ; this should move to the public make-queue
+        (let ((queue (make-array (the fixnum (+ 1 length)) :initial-element '#.*dummy*)))
+          (setf (svref queue 0) #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))) ; 4294967300, 1000...000100
+          (return-from %make-queue queue)))))
+  (error 'queue-length-error :attempted-length length))
 
 ;;; Do we need a compiler macro for the above when LENGTH is constant so that we
 ;;;   don't add 2 at runtime? That's not very high on the priority list, although
@@ -136,7 +135,7 @@
 
 (define-speedy-function %queue-length (queue)
   "Returns QUEUE's maximum length."
-  (the fixnum (- (length (the simple-vector queue)) 2)))
+  (the fixnum (- (length (the simple-vector queue)) 1)))
 
 (define-speedy-function queuep (x)
   "If this returns NIL, X is not a queue"
@@ -147,8 +146,8 @@
            (tail   (the fixnum (ash (logand flag #.*enqueue-mask*)
                                     #.(- *enqueue-start*))))
            (fullp  (the fixnum (logand flag #.*full-queue-mask*))))
-      (and (<= 2 head length)
-           (<= 2 tail length)
+      (and (<= 1 head length)
+           (<= 1 tail length)
            (<= length #.*max-queue-length*)
            (if fullp (= head tail) t)))))
 
@@ -203,18 +202,16 @@
   (let ((new-index (1+ current-index)))                 ; Simply increment the index
     (declare (fixnum new-index))
     (the fixnum (if (= new-index queue-real-length)
-                    2                                   ; Overflow to 1 if necessary
+                    1                                   ; Overflow to 1 if necessary
                     new-index))))
 
 (define-speedy-function %out-index (flag)
   (declare (fixnum flag))
-  (the fixnum (ash (logand flag #.*dequeue-mask*)
-                   #.(- *dequeue-start*))))
+  (the fixnum (ash (logand flag #.*dequeue-mask*) #.(- *dequeue-start*))))
 
 (define-speedy-function %in-index (flag)
   (declare (fixnum flag))
-  (the fixnum (ash (logand flag #.*enqueue-mask*)
-                   #.(- *enqueue-start*))))
+  (the fixnum (ash (logand flag #.*enqueue-mask*) #.(- *enqueue-start*))))
 
 (define-speedy-function %fullp (flag)
   (declare (fixnum flag))
@@ -233,21 +230,6 @@
                  (ash in  #.*enqueue-start*)
                  full)))
 
-(defun index-newer-p (index flag queue)
-  "Used by %enqueue and check if current enqueue is newer. So, in = out only in a full queue."
-  (declare (fixnum index flag))
-  (multiple-value-bind (out in full) (%decode-flag flag)
-    (declare (ignore full))
-    (cond ((> in out) (if (or (>= index in)
-                              (<= index out))
-                          t nil))
-          ((< in out) (if (>= index in) t nil))
-          (t (if (= index in)
-                 t
-                 (index-newer-p index (svref queue 0) queue))))))
-
-
-
 (define-speedy-function %enqueue (object queue)
   "Enqueue OBJECT and increment QUEUE's entry pointer."
   (loop (let ((old-flag (the fixnum (svref queue 0))))
@@ -263,14 +245,9 @@
                   (when (atomics:cas (svref queue 0) old-flag new-flag)
                     ;; the following setf will not overwrite for a fifo type and thus it will always success,
                     ;; but the action may be taken later
-                    (setf (svref queue old-in) object)
-                    (loop for index-in = (svref queue 1)
-                          until (or (> index-in new-in)
-                                    (atomics:cas (svref queue 1) index-in new-in)))
-                    object)))))))
+                    (return (setf (svref queue old-in) object)))))))))
 
-
-(define-speedy-function %dequeue (queue keep-in-queue-p)
+(define-speedy-function %dequeue (queue)
   "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
   (loop (let ((old-flag (the fixnum (svref queue 0))))
           (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
@@ -283,26 +260,30 @@
                                     1
                                     (1+ old-out)))
                        (new-flag (%encode-flag new-out old-in 0)))
-                  (when (atomics:cas (svref queue 0) old-flag new-flag)
-                    ;; since the setf action for this place may be taken future in some time,
-                    ;; the svref action should make sure this place has been setf successfully
-                    (let ((result (svref queue old-out)))
-                      (unless keep-in-queue-p
-                        (setf (svref queue old-out) nil))
-                      (return result)))))))))
+                  ;; since the setf action for this place may be taken future in some time,
+                  ;; the svref action should make sure this place has been setf successfully,
+                  ;; so, the dummy checking here is necessary,
+                  ;; as that place may not have been written by the enqueue operation at the current time.
+                  (when (and (null (eq (svref queue old-out) '#.*dummy*))
+                             (atomics:cas (svref queue 0) old-flag new-flag))
+                    (let ((res '#.*dummy*))
+                      (rotatef res (svref queue old-out))
+                      (return res))
+                    #+:ignpre(let ((res (svref queue old-out)))
+                      (setf (svref queue old-out) '#.*dummy*)
+                      (return res)))))))))
 
 (define-speedy-function %queue-flush (queue)
-  (loop for old-flag = (the fixnum (svref queue 0))
-        with new-flag = #.(+ (ash 1 *dequeue-start*) (ash 1 #.*enqueue-start*))
-        until (atomics:cas (svref queue 0) old-flag new-flag)
+  (declare (simple-vector queue))
+  (loop for i = (%dequeue queue)
+        until (%queue-empty-p queue)
         finally (return queue)))
 
 ;;; Now that all the backend functions are defined, we can define the API:
 
 (defun make-queue (size)
   "Makes a queue of maximum size SIZE"
-  (declare (fixnum size))
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (assert (integerp size))
   (if (<= 2 size #.*max-queue-length*)
       (%make-queue size)
       (if (> size #.*max-queue-length*)
@@ -342,12 +323,11 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%enqueue object queue))
 
-(defun dequeue (queue &optional (keep-in-queue-p t))
-  "Dequeues QUEUE.
-When `keep-in-queue-p' sets to nil, the dequeued val will no longer keep an ref in the queue,
-this is useful when the queue holds very big objects."
+(defun dequeue (queue &optional keep-in-queue-p)
+  "Dequeues QUEUE."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%dequeue queue keep-in-queue-p))
+  (declare (ignore keep-in-queue-p))
+  (%dequeue queue))
 
 (defun queue-to-list (queue)
   "Conver a queue to a list, the first of the returned list is the first item to be popped."
@@ -386,7 +366,7 @@ this is useful when the queue holds very big objects."
                 (find item queue :start 1 :end in :key key :test test))))))
 
 (defun queue-flush (queue)
-  "Make `queue' empty"
+  "Make `queue' empty, ONLY use it when no other threads are modifying the `queue'."
   (%queue-flush queue))
 
 
@@ -694,7 +674,7 @@ this is useful when the queue holds very big objects."
 (define-test speedy-queue-safe-dequeue-enqueue-mixed-threads-kept :parent speedy-queue-safe
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i 10000);*loop-test-times*)
+  (dotimes (i 100000);*loop-test-times*)
     (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
     (setf *enqueue-sum* (make-atomic 0))
     (setf *dequeue-sum* (make-atomic 0))
