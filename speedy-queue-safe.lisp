@@ -102,8 +102,8 @@
 (defmacro define-speedy-function (name args &body body)
   `(progn (declaim (inline ,name))
           (defun ,name ,args
-            ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
-            (declare (optimize (speed 0) (safety 3) (debug 3)))
+            (declare (optimize (speed 3) (safety 0) (debug 0)))
+            ;;(declare (optimize (speed 0) (safety 3) (debug 3)))
             ,@body)))
 
 ;;; Queue Condition API
@@ -242,7 +242,10 @@
                 (let* ((new-in   (%next-index old-in (length (the (simple-vector *) queue))))
                        (new-full (if (= new-in old-out) 1 0))
                        (new-flag (%encode-flag old-out new-in new-full)))
-                  (when (atomics:cas (svref queue 0) old-flag new-flag)
+                  ;; the dummy checking here is necessary,
+                  ;; as that place may not have been written by the dequeue operation at the current time.
+                  (when (and (eq (svref queue old-in) '#.*dummy*)
+                             (atomics:cas (svref queue 0) old-flag new-flag))
                     ;; the following setf will not overwrite for a fifo type and thus it will always success,
                     ;; but the action may be taken later
                     (return (setf (svref queue old-in) object)))))))))
@@ -674,7 +677,7 @@
 (define-test speedy-queue-safe-dequeue-enqueue-mixed-threads-kept :parent speedy-queue-safe
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i 100000);*loop-test-times*)
+  (dotimes (i 20000);*loop-test-times*)
     (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
     (setf *enqueue-sum* (make-atomic 0))
     (setf *dequeue-sum* (make-atomic 0))
