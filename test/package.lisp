@@ -18,3 +18,8 @@
 (define-test safe-queues :parent cl-fast-queues-tests)
 (define-test safe-fifo :parent safe-queues)
 (define-test safe-lifo :parent safe-queues)
+
+
+(define-test safe-queues-exp :safe-queues)
+(define-test safe-fifo-exp :parent safe-queues-exp)
+(define-test safe-lifo-exp :parent safe-queues-exp)
