@@ -1,12 +1,16 @@
-(in-package :cl-fast-queues)
+(in-package :cl-fast-queues-exp)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *overflow-flag* #.cl-speedy-lifo-safe:*overflow-flag*)
+  (defvar *underflow-flag* #.cl-speedy-lifo-safe:*underflow-flag*)
+  (defvar *enlarge-size* 1.5))
 
 ;;; safe unbound fifo queue
 
 (defstruct (safe-fast-fifo (:conc-name safe-fifo-))
   (push-queue nil :type simple-vector)
   (pop-queue  nil :type simple-vector)
-  (underlay nil :type simple-vector)
+  (underlay nil :type simple-vector) ; underlay can be implemented with any fifo structure
   (lock (bt:make-lock "SAFE-FIFO-LOCK"))
   (cvar (bt:make-condition-variable :name "SAFE-FIFO-CVAR")))
 
@@ -16,9 +20,9 @@
 
 (defun make-safe-fifo (&key (init-length 1000)
                        &aux (queue (cl-speedy-queue-safe:make-queue init-length))
-                       (underlay (cl-speedy-queue:make-queue 100)))
+                       (underlay (cl-speedy-queue-safe:make-queue 100)))
   (declare (fixnum init-length))
-  (cl-speedy-queue:enqueue queue underlay)
+  (cl-speedy-queue-safe:enqueue queue underlay)
   (make-safe-fast-fifo :underlay underlay
                        :push-queue queue
                        :pop-queue queue))
@@ -28,7 +32,7 @@
   (with-slots (underlay lock) queue
     (bt:with-lock-held (lock)
       (apply #'+ (mapcar #'cl-speedy-queue-safe:queue-count
-                         (cl-speedy-queue:queue-to-list underlay))))))
+                         (cl-speedy-queue-safe:queue-to-list underlay))))))
 
 (defmethod queue-empty-p ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -38,25 +42,19 @@
            (cl-speedy-queue-safe:queue-empty-p pop-queue)))))
 
 #+:ignore
-(defmethod %unsafe-queue-empty-p ((queue safe-fast-fifo))
-  "This method should only be used in a function's lock-held's body."
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (cl-speedy-queue-safe:queue-empty-p (safe-fifo-pop-queue queue)))
-
-#+:ignore
 (defmethod enqueue (object (queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (push-queue queue-list push-queue-len waitp lock cvar) queue
     (declare (fixnum push-queue-len))
     (bt:with-lock-held (lock)
       ;; when push-queue is full, add a new longer queue at the end of the list
-      (when (cl-speedy-queue:queue-full-p push-queue)
-        (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
+      (when (cl-speedy-queue-safe:queue-full-p push-queue)
+        (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue-safe:queue-length push-queue))
                                                  #.*enlarge-size*))))
-               (new-queue (cl-speedy-queue:make-queue new-len)))
+               (new-queue (cl-speedy-queue-safe:make-queue new-len)))
           (%list-queue-enqueue new-queue queue-list)
           (setf push-queue new-queue)))
-      (prog1 (cl-speedy-queue:enqueue object push-queue)
+      (prog1 (cl-speedy-queue-safe:enqueue object push-queue)
         (when waitp
           (bt:condition-notify cvar))))))
 
@@ -77,7 +75,7 @@
                          (new-queue (cl-speedy-queue-safe:make-queue new-len)))
                     ;(format t "~&Inner, create new queue.~%")
                     (cl-speedy-queue-safe:enqueue object new-queue)
-                    (cl-speedy-queue:enqueue new-queue underlay)
+                    (cl-speedy-queue-safe:enqueue new-queue underlay)
                     (setf (safe-fifo-push-queue queue) new-queue)
                     ;(format t "~&Inner, new queue: ~d~&truct: ~d~%" new-queue queue)
                     object)
@@ -95,9 +93,9 @@
             (let* ((retry-pop-queue (safe-fifo-pop-queue queue)) ; refetch to check if pop was changed by another thread
                    (retry-res (multiple-value-list (cl-speedy-queue-safe:queue-peek retry-pop-queue))))
               (if (and (null (second retry-res))
-                       (> (the fixnum (cl-speedy-queue:queue-count underlay)) 1))
-                  (progn (cl-speedy-queue:dequeue underlay)
-                         (setf pop-queue (cl-speedy-queue:queue-peek underlay))
+                       (> (the fixnum (cl-speedy-queue-safe:queue-count underlay)) 1))
+                  (progn (cl-speedy-queue-safe:dequeue underlay)
+                         (setf pop-queue (cl-speedy-queue-safe:queue-peek underlay))
                          (cl-speedy-queue-safe:queue-peek pop-queue))
                   (values (first res) (second res)))))))))
 
@@ -113,16 +111,16 @@
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (%unsafe-queue-empty-p queue)
                                   do (bt:condition-wait cvar lock))
-                            (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
-                     (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
-            (when (and (cl-speedy-queue:queue-empty-p pop-queue)
+                            (cl-speedy-queue-safe:dequeue pop-queue keep-in-queue-p))
+                     (cl-speedy-queue-safe:dequeue pop-queue keep-in-queue-p))
+            (when (and (cl-speedy-queue-safe:queue-empty-p pop-queue)
                        (null (%singularp (%list-queue-contents queue-list))))
               (%list-queue-dequeue queue-list)
               (setf pop-queue (%list-queue-peek queue-list))))))
       (with-slots (pop-queue queue-list lock) queue
         (bt:with-lock-held (lock)
-          (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
-            (when (and (cl-speedy-queue:queue-empty-p pop-queue)
+          (prog1 (cl-speedy-queue-safe:dequeue pop-queue keep-in-queue-p)
+            (when (and (cl-speedy-queue-safe:queue-empty-p pop-queue)
                        (null (%singularp (%list-queue-contents queue-list))))
               (%list-queue-dequeue queue-list)
               (setf pop-queue (%list-queue-peek queue-list))))))))
@@ -137,9 +135,9 @@
             (let* ((retry-pop-queue (safe-fifo-pop-queue queue)) ; refetch to check if pop was changed by another thread
                    (retry-res (cl-speedy-queue-safe:dequeue retry-pop-queue keep-in-queue-p)))
               (if (and (eq retry-res *underflow-flag*)
-                       (> (the fixnum (cl-speedy-queue:queue-count underlay)) 1))
-                  (progn (cl-speedy-queue:dequeue underlay)
-                         (let* ((new-pop-queue (cl-speedy-queue:queue-peek underlay))
+                       (> (the fixnum (cl-speedy-queue-safe:queue-count underlay)) 1))
+                  (progn (cl-speedy-queue-safe:dequeue underlay)
+                         (let* ((new-pop-queue (cl-speedy-queue-safe:queue-peek underlay))
                                 (new-res (cl-speedy-queue-safe:dequeue new-pop-queue keep-in-queue-p)))
                            (setf (safe-fifo-pop-queue queue) new-pop-queue)
                            new-res))
@@ -152,7 +150,7 @@ So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (bt:with-lock-held ((safe-fifo-lock queue))
     (some #'(lambda (sfifo) (cl-speedy-queue-safe:queue-find item sfifo :key key :test test))
-          (cl-speedy-queue:queue-to-list (safe-fifo-underlay queue)))))
+          (cl-speedy-queue-safe:queue-to-list (safe-fifo-underlay queue)))))
 
 (defmethod queue-flush ((queue safe-fast-fifo))
   "Empty the `queue'"
@@ -160,8 +158,8 @@ So if `item' is nil, the returned value will be nil whatever."
     (bt:with-lock-held (lock)
       (setf push-queue (cl-speedy-queue-safe:queue-flush push-queue)
             pop-queue push-queue)
-      (cl-speedy-queue:queue-flush underlay)
-      (cl-speedy-queue:enqueue push-queue underlay)
+      (cl-speedy-queue-safe:queue-flush underlay)
+      (cl-speedy-queue-safe:enqueue push-queue underlay)
       queue)))
 
 (defmethod queue-to-list ((queue safe-fast-fifo))
@@ -170,7 +168,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (bt:with-lock-held ((safe-fifo-lock queue))
     (mapcan #'cl-speedy-queue-safe:queue-to-list
-            (cl-speedy-queue:queue-to-list (safe-fifo-underlay queue)))))
+            (cl-speedy-queue-safe:queue-to-list (safe-fifo-underlay queue)))))
 
 (defmethod list-to-queue (list (queue-type (eql :safe-fifo))); &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
@@ -198,31 +196,31 @@ and the order of the returned list is the same as enqueue order. (so that they w
   (safe-fast-lifo-p queue))
 
 (defun make-safe-lifo (&key (init-length 1000) ;(waitp t)
-                       &aux (queue (cl-speedy-lifo:make-queue init-length))
-                       (underlay (cl-speedy-lifo:make-queue 100)))
+                       &aux (queue (cl-speedy-lifo-safe:make-queue init-length))
+                       (underlay (cl-speedy-lifo-safe:make-queue 100)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
-  (cl-speedy-lifo:enqueue queue underlay)
+  (cl-speedy-lifo-safe:enqueue queue underlay)
   (make-safe-fast-lifo :underlay underlay
                        :cur-queue queue))
 
 (defmethod queue-count ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (bt:with-lock-held ((safe-lifo-lock queue))
-    (apply #'+ (mapcar #'cl-speedy-lifo:queue-count
-                       (cl-speedy-lifo:queue-to-list (safe-lifo-underlay queue))))))
+    (apply #'+ (mapcar #'cl-speedy-lifo-safe:queue-count
+                       (cl-speedy-lifo-safe:queue-to-list (safe-lifo-underlay queue))))))
 
 (defmethod queue-empty-p ((queue safe-fast-lifo))
   ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (bt:with-lock-held (lock)
-      (and (= (cl-speedy-lifo:queue-count underlay) 1)
-           (cl-speedy-lifo:queue-empty-p (cl-speedy-lifo:queue-peek underlay))))))
+      (and (= (cl-speedy-lifo-safe:queue-count underlay) 1)
+           (cl-speedy-lifo-safe:queue-empty-p (cl-speedy-lifo-safe:queue-peek underlay))))))
 
 #+:ignore
 (defmethod %unsafe-queue-empty-p ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (cl-speedy-lifo:queue-empty-p
+  (cl-speedy-lifo-safe:queue-empty-p
    (car (safe-lifo-queue-list queue))))
 
 #+:ignore
@@ -231,30 +229,30 @@ and the order of the returned list is the same as enqueue order. (so that they w
   (with-slots (cur-queue queue-list waitp lock cvar) queue
     (declare (single-float *enlarge-size*))
     (bt:with-lock-held (lock)
-      (when (cl-speedy-lifo:queue-full-p cur-queue)
-        (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo:queue-length cur-queue))
+      (when (cl-speedy-lifo-safe:queue-full-p cur-queue)
+        (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo-safe:queue-length cur-queue))
                                                  *enlarge-size*))))
-               (new-queue (cl-speedy-lifo:make-queue new-len)))
+               (new-queue (cl-speedy-lifo-safe:make-queue new-len)))
           (push new-queue queue-list)
           (setf cur-queue new-queue)))
-      (prog1 (cl-speedy-lifo:enqueue object cur-queue)
+      (prog1 (cl-speedy-lifo-safe:enqueue object cur-queue)
         (when waitp (bt:condition-notify cvar))))))
 
 (defmethod enqueue (object (queue safe-fast-lifo))
   ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (let* ((cur-queue (safe-lifo-cur-queue queue))
-           (res (cl-speedy-lifo:enqueue-safe object cur-queue)))
+           (res (cl-speedy-lifo-safe:enqueue object cur-queue)))
       (if (eq res #.*overflow-flag*)
           (bt:with-lock-held (lock)
             (let* ((retry-cur-queue (safe-lifo-cur-queue queue)) ; check if push-queue was changed by another thread
-                   (retry-res (cl-speedy-lifo:enqueue-safe object retry-cur-queue)))
+                   (retry-res (cl-speedy-lifo-safe:enqueue object retry-cur-queue)))
               (if (eq retry-res #.*overflow-flag*)
-                  (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo:queue-length retry-cur-queue))
+                  (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo-safe:queue-length retry-cur-queue))
                                                            #.*enlarge-size*))))
-                         (new-queue (cl-speedy-lifo:make-queue new-len)))
-                    (cl-speedy-lifo:enqueue new-queue underlay)
-                    (cl-speedy-lifo:enqueue-safe object
+                         (new-queue (cl-speedy-lifo-safe:make-queue new-len)))
+                    (cl-speedy-lifo-safe:enqueue new-queue underlay)
+                    (cl-speedy-lifo-safe:enqueue object
                                                  (setf (safe-lifo-cur-queue queue) new-queue)))
                   retry-res)))
           res))))
@@ -263,17 +261,17 @@ and the order of the returned list is the same as enqueue order. (so that they w
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (let* ((cur-queue (safe-lifo-cur-queue queue))
-           (res (multiple-value-list (cl-speedy-lifo:queue-peek cur-queue))))
+           (res (multiple-value-list (cl-speedy-lifo-safe:queue-peek cur-queue))))
       (if (second res)
           (values (first res) (second res))
           (bt:with-lock-held (lock)
             (let* ((retry-cur-queue (safe-lifo-cur-queue queue)) ; refetch to check if pop was changed by another thread
-                   (retry-res (multiple-value-list (cl-speedy-lifo:queue-peek retry-cur-queue))))
+                   (retry-res (multiple-value-list (cl-speedy-lifo-safe:queue-peek retry-cur-queue))))
               (if (and (null (second retry-res))
-                       (> (the fixnum (cl-speedy-lifo:queue-count underlay)) 1))
-                  (progn (cl-speedy-lifo:dequeue underlay)
-                         (setf pop-queue (cl-speedy-lifo:queue-peek underlay))
-                         (cl-speedy-lifo:queue-peek cur-queue))
+                       (> (the fixnum (cl-speedy-lifo-safe:queue-count underlay)) 1))
+                  (progn (cl-speedy-lifo-safe:dequeue underlay)
+                         (setf pop-queue (cl-speedy-lifo-safe:queue-peek underlay))
+                         (cl-speedy-lifo-safe:queue-peek cur-queue))
                                     (values (first res) (second res)))))))))
 #+:ignore
 (defmethod dequeue ((queue safe-fast-lifo) &optional (keep-in-queue-p t))
@@ -288,17 +286,17 @@ and the order of the returned list is the same as enqueue order. (so that they w
                      ;; but the tests shows that in sbcl the bug still exists when apiv2 was used without a loop.
                      (progn (loop while (%unsafe-queue-empty-p queue)
                                   do (bt:condition-wait cvar lock))
-                            (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
-                     (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
-            (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
+                            (cl-speedy-lifo-safe:dequeue cur-queue keep-in-queue-p))
+                     (cl-speedy-lifo-safe:dequeue cur-queue keep-in-queue-p))
+            (when (and (cl-speedy-lifo-safe:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (cdr queue-list)
                     cur-queue (car  queue-list))))))
       (with-slots (cur-queue queue-list cur-queue-len lock) queue
         (declare (list queue-list))
         (bt:with-lock-held (lock)
-          (prog1 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)
-            (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
+          (prog1 (cl-speedy-lifo-safe:dequeue cur-queue keep-in-queue-p)
+            (when (and (cl-speedy-lifo-safe:queue-empty-p cur-queue)
                        (null (%singularp queue-list)))
               (setf queue-list (cdr queue-list)
                     cur-queue (car  queue-list))))))))
@@ -307,15 +305,15 @@ and the order of the returned list is the same as enqueue order. (so that they w
   ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (let* ((cur-queue (safe-lifo-cur-queue queue))
-           (res (cl-speedy-lifo:dequeue-safe cur-queue keep-in-queue-p)))
+           (res (cl-speedy-lifo-safe:dequeue cur-queue keep-in-queue-p)))
       (if (eq res *underflow-flag*)
           (bt:with-lock-held (lock)
             (let* ((retry-cur-queue (safe-lifo-cur-queue queue)) ; refetch to check if pop was changed by another thread
-                   (retry-res (cl-speedy-lifo:dequeue-safe retry-cur-queue keep-in-queue-p)))
+                   (retry-res (cl-speedy-lifo-safe:dequeue retry-cur-queue keep-in-queue-p)))
               (if (and (eq retry-res *underflow-flag*)
-                       (> (the fixnum (cl-speedy-lifo:queue-count underlay)) 1))
-                  (progn (cl-speedy-lifo:dequeue underlay)
-                         (cl-speedy-lifo:dequeue-safe (setf (safe-lifo-cur-queue queue) (cl-speedy-lifo:queue-peek underlay))
+                       (> (the fixnum (cl-speedy-lifo-safe:queue-count underlay)) 1))
+                  (progn (cl-speedy-lifo-safe:dequeue underlay)
+                         (cl-speedy-lifo-safe:dequeue (setf (safe-lifo-cur-queue queue) (cl-speedy-lifo-safe:queue-peek underlay))
                                                        keep-in-queue-p))
                   res)))
           res))))
@@ -325,16 +323,16 @@ and the order of the returned list is the same as enqueue order. (so that they w
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (bt:with-lock-held ((safe-lifo-lock queue))
-    (some #'(lambda (slifo) (cl-speedy-lifo:queue-find item slifo :key key :test test))
-          (cl-speedy-lifo:queue-to-list (safe-lifo-underlay queue)))))
+    (some #'(lambda (slifo) (cl-speedy-lifo-safe:queue-find item slifo :key key :test test))
+          (cl-speedy-lifo-safe:queue-to-list (safe-lifo-underlay queue)))))
 
 (defmethod queue-flush ((queue safe-fast-lifo))
   "Empty the `queue', do not use it when there some thread is doing dequeue/enqueue."
   (with-slots (cur-queue underlay lock) queue
     (bt:with-lock-held (lock)
-      (setf (safe-lifo-cur-queue queue) (cl-speedy-lifo:queue-flush cur-queue))
-      (cl-speedy-lifo:queue-flush underlay)
-      (cl-speedy-lifo:enqueue cur-queue underlay)
+      (setf (safe-lifo-cur-queue queue) (cl-speedy-lifo-safe:queue-flush cur-queue))
+      (cl-speedy-lifo-safe:queue-flush underlay)
+      (cl-speedy-lifo-safe:enqueue cur-queue underlay)
       queue)))
 
 (defmethod queue-to-list ((queue safe-fast-lifo))
@@ -342,8 +340,8 @@ So if `item' is nil, the returned value will be nil whatever."
 and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (bt:with-lock-held ((safe-lifo-lock queue))
-    (mapcan #'cl-speedy-lifo:queue-to-list
-            (cl-speedy-lifo:queue-to-list (safe-lifo-underlay queue)))))
+    (mapcan #'cl-speedy-lifo-safe:queue-to-list
+            (cl-speedy-lifo-safe:queue-to-list (safe-lifo-underlay queue)))))
 
 (defmethod list-to-queue (list (queue-type (eql :safe-lifo))) ; &optional (waitp t))
   "Make a queue, then enque the items in the list from left to right."
