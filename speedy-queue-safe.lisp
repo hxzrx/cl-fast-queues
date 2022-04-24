@@ -53,10 +53,10 @@
 ;;
 ;; Now, all tests passed!
 
-(ql:quickload :cl-speedy-lifo)
-(ql:quickload :atomics)
-(ql:quickload :bordeaux-threads)
-(ql:quickload :parachute)
+;;(ql:quickload :cl-speedy-lifo)
+;;(ql:quickload :atomics)
+;;(ql:quickload :bordeaux-threads)
+;;(ql:quickload :parachute)
 
 (cl:defpackage #:cl-speedy-queue-safe
   (:use :cl)
@@ -75,7 +75,9 @@
    :queue-find
    :queue-flush
    :*overflow-flag*
-   :*underflow-flag*))
+   :*underflow-flag*
+   :*dummy*
+   :*max-queue-length*))
 
 (cl:in-package #:cl-speedy-queue-safe)
 
@@ -95,7 +97,7 @@
 
   (defparameter *overflow-flag* cl-speedy-lifo:*overflow-flag*)
   (defparameter *underflow-flag* cl-speedy-lifo:*underflow-flag*)
-  (defparameter *dummy* '!dummy!))
+  (defconstant *dummy* '!dummy!))
 
 ;;; The functions in this file are dangerous. Good compilers will generate code that will
 ;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
@@ -109,7 +111,6 @@
   `(progn (declaim (inline ,name))
           (defun ,name ,args
             (declare (optimize (speed 3) (safety 0) (debug 0)))
-            ;;(declare (optimize (speed 0) (safety 3) (debug 3)))
             ,@body)))
 
 ;;; Queue Condition API
@@ -127,17 +128,11 @@
 
 (define-speedy-function %make-queue (length)
   "Creates a new queue of maximum size LENGTH, LENGTH should be at least two."
-  (when (typep length 'fixnum)
-    (locally (declare (fixnum length))
-      (when (<= 2 length #.*max-queue-length*) ; this should move to the public make-queue
-        (let ((queue (make-array (the fixnum (+ 1 length)) :initial-element '#.*dummy*)))
-          (setf (svref queue 0) #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))) ; 4294967300, 1000...000100
-          (return-from %make-queue queue)))))
-  (error 'queue-length-error :attempted-length length))
+  (declare (fixnum length))
+  (let ((queue (make-array (the fixnum (+ 1 length)) :initial-element '#.*dummy*)))
+    (setf (svref queue 0) #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))) ; 4294967300, 1000...000100
+    (return-from %make-queue queue)))
 
-;;; Do we need a compiler macro for the above when LENGTH is constant so that we
-;;;   don't add 2 at runtime? That's not very high on the priority list, although
-;;;   it'll probably take less time to write than this comment did. -- Adlai
 
 (define-speedy-function %queue-length (queue)
   "Returns QUEUE's maximum length."
@@ -199,11 +194,11 @@
   ;; We start with the 'raw' length -- the difference between the pointers
   (let ((length (- (%queue-in queue) (%queue-out queue))))
     (declare (fixnum length))
-    (cond ((plusp length) length)                         ; Raw length is OK
-          ((or (minusp length)                            ; Entry pointer is before exit pointer,
-               (%queue-full-p queue))                     ;   or the queue is full
-           (the fixnum (+ length (%queue-length queue)))) ; Add the effective length
-          (t 0))))                                        ; Queue is empty -- return zero
+    (the fixnum (cond ((plusp length) length)                         ; Raw length is OK
+                      ((or (minusp length)                            ; Entry pointer is before exit pointer,
+                           (%queue-full-p queue))                     ;   or the queue is full
+                       (the fixnum (+ length (%queue-length queue)))) ; Add the effective length
+                      (t 0)))))                                       ; Queue is empty -- return zero
 
 (define-speedy-function %next-index (current-index queue-real-length)
   (declare (fixnum current-index queue-real-length))
@@ -234,14 +229,15 @@
 
 (define-speedy-function %encode-flag (out in full)
   (declare (fixnum out in full))
-  (the fixnum (+ (ash out #.*dequeue-start*)
-                 (ash in  #.*enqueue-start*)
+  (the fixnum (+ (the fixnum (ash out #.*dequeue-start*))
+                 (the fixnum (ash in  #.*enqueue-start*))
                  full)))
 
 (define-speedy-function %enqueue (object queue)
   "Enqueue OBJECT and increment QUEUE's entry pointer."
   (loop (let ((old-flag (the fixnum (svref queue 0))))
           (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
+            (declare (fixnum old-out old-in old-full))
             (if (= old-full 1) ; test if queue is full
                 ;; full, enqueue will overflow, cas to make sure it's really full
                 (when (atomics:cas (svref queue 0) old-flag old-flag) ; enqueue to a full queue is idempotent
@@ -262,6 +258,7 @@
   "Sets QUEUE's tail to QUEUE, increments QUEUE's tail pointer, and returns the previous tail ref"
   (loop (let ((old-flag (the fixnum (svref queue 0))))
           (multiple-value-bind (old-out old-in old-full) (%decode-flag old-flag)
+            (declare (fixnum old-out old-in old-full))
             (if (and (= old-out old-in) (= old-full 0)) ; test if queue is empty
                 ;; empty, dequeue will underflow, cas to make sure it's really empty
                 (when (atomics:cas (svref queue 0) old-flag old-flag) ; dequeue to an empty queue is idempotent
@@ -281,12 +278,12 @@
                       (rotatef res (svref queue old-out))
                       (return res))
                     #+:ignpre(let ((res (svref queue old-out)))
-                      (setf (svref queue old-out) '#.*dummy*)
-                      (return res)))))))))
+                               (setf (svref queue old-out) '#.*dummy*)
+                               (return res)))))))))
 
 (define-speedy-function %queue-flush (queue)
   (declare (simple-vector queue))
-  (loop for i = (%dequeue queue)
+  (loop for dummy = (%dequeue queue)
         until (%queue-empty-p queue)
         finally (return queue)))
 
@@ -305,12 +302,12 @@
 (defun queue-count (queue)
   "Returns the current size of QUEUE"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%queue-count queue))
+  (the fixnum (%queue-count queue)))
 
 (defun queue-length (queue)
   "Returns the maximum size of QUEUE"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (%queue-length queue))
+  (the fixnum (%queue-length queue)))
 
 (defun queue-peek (queue)
   "Returns the next item that would be dequeued without dequeueing it."
@@ -381,120 +378,6 @@
   (%queue-flush queue))
 
 
-#|
-;; conclusion: DO NOT use setf ldb in ccl!
-
-(defparameter *int* #.(+ (ash 1 +queue-length-bits+) 1))
-
-(defun test-ldb-rd-high (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (ldb (byte 31 31) n))
-
-(defun test-ash-rd-high (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (ash n -31))
-
-(defun time-rd-high (&optional (num *int*) (times 10000000000))
-  ;; sbcl: 50.5s/42.6s
-  ;; ccl:  37.2s/37.2
-  (format t "~&test-ldb-rd~%")
-  (time (dotimes (i times)
-          (test-ldb-rd-high num)))
-  (format t "~&~%test-ash-rd~%")
-  (time (dotimes (i times)
-          (test-ash-rd-high num))))
-
-
-(defun test-ldb-rd-low (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (ldb (byte 31 0) n))
-
-(defun test-ash-rd-low (n) ; logand in fact
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (logand n #.+low-bits-ones+))
-
-(defun time-rd-low (&optional (num *int*) (times 10000000000))
-  ;; sbcl: 41.3s/40.4s
-  ;; ccl: 45.7s/34.7s
-  (format t "~&test-ldb-rd~%")
-  (time (dotimes (i times)
-          (test-ldb-rd-low num)))
-  (format t "~&~%test-ash-rd~%")
-  (time (dotimes (i times)
-          (test-ash-rd-low num))))
-
-
-(defun test-logand-wt-high (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (setf n (+ (+ (logand n #.+high-bits-ones+) 0)
-             (logand n #.+low-bits-ones+)))
-  n)
-
-(defun test-ldb-wt-high (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (setf (ldb (byte 31 31) n) (+ (ldb (byte 31 31) n) 0))
-  n)
-
-(defun test-ash-wt-high (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (setf n (+ (ash (+ (ash n #.(- +queue-length-bits+)) 0) #.+queue-length-bits+)
-             (logand n #.+low-bits-ones+)))
-  n)
-
-(defun time-wt-high (&optional (num *int*) (times 10000000000))
-  ;; sbcl: 41.9s/41.8s/44.3s
-  ;; ccl: 43.3s/1291.6s/86.4s
-  (format t "~&test-logand-wt-high~%")
-  (time (dotimes (i times)
-          (test-logand-wt-high num)))
-  (format t "~&test-ldb-wt-high~%")
-  (time (dotimes (i times)
-          (test-ldb-wt-high num)))
-  (format t "~&~%test-ash-wt-high~%")
-  (time (dotimes (i times)
-          (test-ash-wt-high num))))
-
-
-(defun test-logand-wt-low (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (setf n (+ (logand n #.+high-bits-ones+)
-             (+ (logand n #.+low-bits-ones+) 0)))
-  n)
-
-(defun test-ldb-wt-low (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (setf (ldb (byte 31 0) n) (+ (ldb (byte 31 0) n) 0))
-  n)
-
-(defun test-ash-wt-low (n)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (fixnum n))
-  (setf n (+ (ash (ash n #.(- +queue-length-bits+)) #.+queue-length-bits+)
-             (+ (logand n #.+low-bits-ones+) 0)))
-  n)
-
-(defun time-wt-low (&optional (num *int*) (times 10000000000))
-  ;; sbcl: 41.3s/41.6s/45.0s
-  ;; ccl: 42.5s/1209.8s/74.5s
-  (format t "~&test-logand-wt-low~%")
-  (time (dotimes (i times)
-          (test-logand-wt-high num)))
-  (format t "~&test-ldb-wt-low~%")
-  (time (dotimes (i times)
-          (test-ldb-wt-high num)))
-  (format t "~&~%test-ash-wt-low~%")
-  (time (dotimes (i times)
-          (test-ash-wt-high num))))
-|#
 
 #|
 ;; for 10^9 times, about 1~3 seconds slower than speedy-queue.
@@ -584,151 +467,3 @@
             (dotimes (i num)
               (sb-concurrency:dequeue queue))))))
 |#
-
-
-
-
-
-(defpackage #:cl-speedy-queue-safe-tests
-  (:use #:cl #:parachute #:cl-speedy-queue-safe)
-  (:export #:test))
-
-(in-package :cl-speedy-queue-safe-tests)
-
-(defun make-atomic (init-value)
-  "Return a structure that can be cas'ed"
-  #+ccl
-  (make-array 1 :initial-element init-value)
-  #-ccl
-  (cons init-value nil))
-
-(defmacro atomic-place (atomic-structure)
-  "Return value of atomic-fixnum in macro."
-  #+ccl
-  `(svref ,atomic-structure 0)
-  #-ccl
-  `(car ,atomic-structure))
-
-(defmacro atomic-incf (place &optional (diff 1))
-  "Atomic incf fixnum in `place' with `diff' and return OLD value."
-  #+sbcl
-  `(sb-ext:atomic-incf ,place ,diff)
-  #+ccl
-  `(let ((old ,place))
-     (ccl::atomic-incf-decf ,place ,diff)
-     old))
-
-(defun make-random-list (len &optional (max 5))
-  (loop for i below len
-        collect (random max)))
-
-(define-test speedy-queue-safe)
-
-(define-test speedy-queue-safe-single-thread :parent speedy-queue-safe
-  (let* ((len 20)
-         (queue (cl-speedy-queue-safe:make-queue len))
-         (lst (loop for i from 0 below len collect i)))
-    (is = 0 (cl-speedy-queue-safe:queue-count queue))
-    (is = len (cl-speedy-queue-safe:queue-length queue))
-    (is-values (cl-speedy-queue-safe:queue-peek queue) (eql nil) (eql nil))
-    (false (cl-speedy-queue-safe:queue-full-p queue))
-    (true (cl-speedy-queue-safe:queue-empty-p queue))
-    (is equal nil (cl-speedy-queue-safe:queue-to-list queue))
-    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
-    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
-    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
-    (loop for item in lst
-          for idx from 0
-          for count from 1
-          do (progn (finish (cl-speedy-queue-safe:enqueue item queue))
-                    (is = count (cl-speedy-queue-safe:queue-count queue))
-                    (is = len (cl-speedy-queue-safe:queue-length queue))
-                    (is-values (cl-speedy-queue-safe:queue-peek queue) (eql (first lst)) (eql t))
-                    (if (= count len)
-                        (true (cl-speedy-queue-safe:queue-full-p queue))
-                        (false (cl-speedy-queue-safe:queue-full-p queue)))
-                    (false (cl-speedy-queue-safe:queue-empty-p queue))
-                    (is equal (subseq lst 0 count) (cl-speedy-queue-safe:queue-to-list queue))
-                    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
-                    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
-                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue-safe::queue-sentinel queue))
-                    (loop for element in (subseq lst 0 count)
-                          do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
-                    (loop for element in (subseq lst count len)
-                          do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
-                    ))
-    (loop for idx from 0 below len
-          for count from 1
-          do (progn (finish (cl-speedy-queue-safe:dequeue queue))
-                    (is = (- len count) (cl-speedy-queue-safe:queue-count queue))
-                    (is = len (cl-speedy-queue-safe:queue-length queue))
-                    (if (= count len)
-                        (is-values (cl-speedy-queue-safe:queue-peek queue) (eql nil) (eql nil))
-                        (is-values (cl-speedy-queue-safe:queue-peek queue) (eql (nth count lst)) (eql t)))
-                    (false (cl-speedy-queue-safe:queue-full-p queue))
-                    (if (= count len)
-                        (true (cl-speedy-queue-safe:queue-empty-p queue))
-                        (false (cl-speedy-queue-safe:queue-empty-p queue)))
-                    (is equal (subseq lst count len) (cl-speedy-queue-safe:queue-to-list queue))
-                    (is eql nil (cl-speedy-queue-safe:queue-find (1+ len) queue))
-                    (is eql nil (cl-speedy-queue-safe:queue-find nil queue))
-                    ;;(is eql nil (cl-speedy-queue-safe:queue-find cl-speedy-queue::queue-sentinel queue))
-                    (loop for element in (subseq lst count len)
-                          do (progn (is = element (cl-speedy-queue-safe:queue-find element queue))))
-                    (loop for element in (subseq lst 0 count)
-                          do (progn (is eql nil (cl-speedy-queue-safe:queue-find element queue))))
-      ))))
-
-(defparameter *enqueue-sum* (make-atomic 0))
-(defparameter *dequeue-sum* (make-atomic 0))
-
-(define-test speedy-queue-safe-dequeue-enqueue-mixed-threads :parent speedy-queue-safe
-  #+sbcl (sb-ext:gc :full t)
-  #+ccl (ccl:gc)
-  (dotimes (i 500000);*loop-test-times*)
-    (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
-    (setf *enqueue-sum* (make-atomic 0))
-    (setf *dequeue-sum* (make-atomic 0))
-    (let* ((n (+ 10 (random 10))) ; queue length
-           (queue (cl-speedy-queue-safe:make-queue n))
-           (push-threads nil)
-           (pop-threads nil)
-           (k (random (1+ n))) ; randomly fill [0, n] itmes
-           (lst (make-random-list k))
-           (total (apply #'+ lst)))
-      (assert (<= (length lst) (cl-speedy-queue-safe:queue-length queue)))
-      (dolist (element lst)
-        (let ((ele element)) ; make a bind as the var of element will change and will affect among the threads
-          (push (bt:make-thread #'(lambda ()
-                                    (let ((res (cl-speedy-queue-safe:enqueue ele queue)))
-                                      (if (integerp res)
-                                          (atomic-incf (atomic-place *enqueue-sum*) res)
-                                          (format t "~&To enqueue: ~d, ret: ~d, queue: ~d~%" ele res queue)))))
-                push-threads)))
-
-      (dolist (element lst)
-        (push (bt:make-thread #'(lambda ()
-                                  (let ((res (cl-speedy-queue-safe:dequeue queue t)))
-                                    (if (integerp res)
-                                        (atomic-incf (atomic-place *dequeue-sum*) res)
-                                        (format t "~&Dequeue return: ~d, queue: ~d~%" res queue)))))
-              pop-threads))
-
-      (dolist (thread push-threads)
-        (bt:join-thread thread))
-      (dolist (thread pop-threads)
-        (bt:join-thread thread))
-
-      (is = total (atomic-place *enqueue-sum*))
-      (is = total (+ (atomic-place *dequeue-sum*)
-                     (apply #'+ (cl-speedy-queue-safe:queue-to-list queue))))
-
-      (unless (cl-speedy-queue-safe:queue-empty-p queue)
-        (format t "~&queue not empty: ~d~%elements: ~d~%" queue (cl-speedy-queue-safe:queue-to-list queue)))
-      (unless (= total (+ (atomic-place *dequeue-sum*)
-                          (apply #'+ (cl-speedy-queue-safe:queue-to-list queue))))
-        (format t "~&~%List: ~d~%" lst)
-        (format t "~&items num: ~d, enqueue sum: ~d, expect sum: ~d~%" k (atomic-place *enqueue-sum*) total)
-        (format t "~&Queue count: ~d~%" (cl-speedy-queue-safe:queue-count queue))
-        (format t "~&Queue: ~d~%~%" queue))
-      )))
