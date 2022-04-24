@@ -1,6 +1,3 @@
-;;;; This seems correctly!
-;;;; Test failed, DO NOT use it. modification after compare-and-swap is not atomic.
-
 ;; Design:
 ;; This safe queue keeps its enqueue place, dequeue place and full flag in a fixnum in the head of an simple-array.
 ;;
@@ -16,12 +13,12 @@
 ;; This queue tried to do setf if compare-and-swap return true, and here's the pseudo-code:
 ;;   (loop (let (...)
 ;;            (when (compare-and-swap place old new)
-;;               (modify-something)
+;;               (do-something)
 ;;               (return))))
 ;;
 ;; Objective: We hope that the items returned by push threads will be those items enqueued.
 ;;
-;; Result: FAIL
+;; Be careful! The combination of compare-and-swap and the subsequent operation is not atomic.
 ;;
 ;; Analyze:
 ;; The table below shows how this code FAILS.
@@ -45,7 +42,16 @@
 ;;    for each time interval.
 ;;
 ;; This example was took from a test, the result showed that the a thread pushed 1, but another thread popped NIL.
-
+;;
+;; The revised version adds an extra checking before compare-and-swap,
+;; which ensures the cell that will be immediately operated on has an reasonable value.
+;; and here's the pseudo-code:
+;;   (loop (let (...)
+;;            (when (and (cell-checking) (compare-and-swap place old new))
+;;               (do-something)
+;;               (return))))
+;;
+;; Now, all tests passed!
 
 (ql:quickload :cl-speedy-lifo)
 (ql:quickload :atomics)
@@ -674,10 +680,10 @@
 (defparameter *enqueue-sum* (make-atomic 0))
 (defparameter *dequeue-sum* (make-atomic 0))
 
-(define-test speedy-queue-safe-dequeue-enqueue-mixed-threads-kept :parent speedy-queue-safe
+(define-test speedy-queue-safe-dequeue-enqueue-mixed-threads :parent speedy-queue-safe
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i 20000);*loop-test-times*)
+  (dotimes (i 500000);*loop-test-times*)
     (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
     (setf *enqueue-sum* (make-atomic 0))
     (setf *dequeue-sum* (make-atomic 0))
