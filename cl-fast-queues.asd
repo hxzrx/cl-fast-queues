@@ -28,8 +28,8 @@
   :components ((:module "test"
                 :serial t
                 :components ((:file "package")
-                             (:file "specials")
                              (:file "utils")
+                             (:file "specials")
                              (:file "speedy-queue")
                              (:file "speedy-queue-safe")
                              (:file "list-queue")
