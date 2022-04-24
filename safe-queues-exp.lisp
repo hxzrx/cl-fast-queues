@@ -315,7 +315,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
                   (progn (cl-speedy-lifo-safe:dequeue underlay)
                          (cl-speedy-lifo-safe:dequeue (setf (safe-lifo-cur-queue queue) (cl-speedy-lifo-safe:queue-peek underlay))
                                                        keep-in-queue-p))
-                  res)))
+                  retry-res)))
           res))))
 
 (defmethod queue-find (item (queue safe-fast-lifo) &key (key #'identity) (test #'eql))
