@@ -180,7 +180,9 @@
 
 (define-speedy-function %queue-peek (queue)
   "Dereference QUEUE's exit pointer"
-  (svref queue (%queue-out queue)))
+  (loop for peek = (svref queue (%queue-out queue))
+        while (eq peek '#.*dummy*)
+        finally (return peek)))
 
 (define-speedy-function %queue-full-p (queue)
   "Checks whether QUEUE is effectively full"
@@ -691,7 +693,7 @@
            (queue (cl-speedy-queue-safe:make-queue n))
            (push-threads nil)
            (pop-threads nil)
-           (k (random n)) ; fill num
+           (k (random (1+ n))) ; randomly fill [0, n] itmes
            (lst (make-random-list k))
            (total (apply #'+ lst)))
       (assert (<= (length lst) (cl-speedy-queue-safe:queue-length queue)))
