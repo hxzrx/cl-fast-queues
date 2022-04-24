@@ -53,10 +53,6 @@
 ;;
 ;; Now, all tests passed!
 
-;;(ql:quickload :cl-speedy-lifo)
-;;(ql:quickload :atomics)
-;;(ql:quickload :bordeaux-threads)
-;;(ql:quickload :parachute)
 
 (cl:defpackage #:cl-speedy-queue-safe
   (:use :cl)
@@ -79,6 +75,7 @@
    :*dummy*
    :*max-queue-length*))
 
+
 (cl:in-package #:cl-speedy-queue-safe)
 
 
@@ -99,13 +96,6 @@
   (defparameter *underflow-flag* cl-speedy-lifo:*underflow-flag*)
   (defconstant *dummy* '!dummy!))
 
-;;; The functions in this file are dangerous. Good compilers will generate code that will
-;;;   do VERY funky shit when called incorrectly. Calls to these functions should be hidden
-;;;   behind safe code that never passes arguments of incorrect types.
-
-;;; Unlike the standard queue implementation which you find in CL code (push to the tail of
-;;;   a list, pop from the head), these queues do not cons one bit. You do, however, need to
-;;;   "declare" a queue's size (at runtime) when you make one.
 
 (defmacro define-speedy-function (name args &body body)
   `(progn (declaim (inline ,name))
@@ -120,11 +110,13 @@
   (:report (lambda (c s)
              (format s "Queue error in queue ~S"
                      (queue-condition-queue c)))))
+
 (define-condition queue-length-error (queue-condition)
   ((attempted-length :reader queue-error-attempted-length :initarg :attempted-length))
   (:report (lambda (c s)
              (format s "Queue created with invalid length: ~S"
                      (queue-error-attempted-length c)))))
+
 
 (define-speedy-function %make-queue (length)
   "Creates a new queue of maximum size LENGTH, LENGTH should be at least two."
@@ -132,7 +124,6 @@
   (let ((queue (make-array (the fixnum (+ 1 length)) :initial-element '#.*dummy*)))
     (setf (svref queue 0) #.(+ (ash 1 *dequeue-start*) (ash 1 *enqueue-start*))) ; 4294967300, 1000...000100
     (return-from %make-queue queue)))
-
 
 (define-speedy-function %queue-length (queue)
   "Returns QUEUE's maximum length."
@@ -276,10 +267,7 @@
                              (atomics:cas (svref queue 0) old-flag new-flag))
                     (let ((res '#.*dummy*))
                       (rotatef res (svref queue old-out))
-                      (return res))
-                    #+:ignpre(let ((res (svref queue old-out)))
-                               (setf (svref queue old-out) '#.*dummy*)
-                               (return res)))))))))
+                      (return res)))))))))
 
 (define-speedy-function %queue-flush (queue)
   (declare (simple-vector queue))
@@ -331,10 +319,9 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%enqueue object queue))
 
-(defun dequeue (queue &optional keep-in-queue-p)
+(defun dequeue (queue)
   "Dequeues QUEUE."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (ignore keep-in-queue-p))
   (%dequeue queue))
 
 (defun queue-to-list (queue)
