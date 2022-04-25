@@ -233,6 +233,7 @@
                                 (bt:make-thread #'(lambda () (cl-fast-queues:dequeue queue t)))))))
       (true (cl-fast-queues:queue-empty-p queue)))))
 
+#+sbcl
 (define-test safe-lifo-exp-dequeue/enqueue-threads :parent safe-lifo-exp
   "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
   #+sbcl (sb-ext:gc :full t)
@@ -273,7 +274,7 @@
                 (cl-fast-queues:queue-to-list queue)))
       )))
 
-
+#+sbcl
 (define-test safe-lifo-exp-enqueue/dequeue-threads :parent safe-lifo-exp
   "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
   (dotimes (i *loop-times*)
@@ -303,3 +304,69 @@
       (setf dequeued+remainded (append (remove-if-not #'integerp *pop-list*)
                                        (cl-fast-queues:queue-to-list queue)))
       (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*)))))
+
+#+ccl
+(define-test safe-lifo-exp-dequeue/enqueue-threads :parent safe-lifo-exp
+  "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
+  #+ccl (ccl:gc)
+  (dotimes (i *loop-times*)
+    (let* ((num (+ 2 (random 5)))
+           (queue (cl-fast-queues:make-safe-lifo :init-length num)) ; :waitp t))
+           (items (loop for i below (random 20) collect (random 10)))
+           (push-threads nil)
+           (pop-threads nil)
+           (items-sum (apply #'+ items)))
+      (setf *dequeue-sum* (make-atomic 0))
+      (setf *enqueue-sum* (make-atomic 0))
+      (dolist (item items)
+        (declare (ignore item))
+        (push (bt:make-thread #'(lambda ()
+                                  (let ((res (cl-fast-queues:dequeue queue nil)))
+                                    (if (integerp res)
+                                        (atomic-incf (atomic-place *dequeue-sum*) res)))))
+              pop-threads))
+      (dolist (item items)
+        (let ((it item))
+          (push (bt:make-thread #'(lambda ()
+                                    (let ((res (cl-fast-queues:enqueue it queue)))
+                                      (if (integerp res)
+                                          (atomic-incf (atomic-place *enqueue-sum*) res)))))
+                push-threads)))
+      (dolist (th pop-threads) (bt:join-thread th))
+      (dolist (th push-threads) (bt:join-thread th))
+      (is = items-sum (atomic-place *enqueue-sum*))
+      (is = items-sum (+ (atomic-place *dequeue-sum*) (apply #'+ (cl-fast-queues:queue-to-list queue))))
+      )))
+
+#+ccl
+(define-test safe-lifo-exp-enqueue/dequeue-threads :parent safe-lifo-exp
+  "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
+  #+ccl (ccl:gc)
+  (dotimes (i *loop-times*)
+    (let* ((num (+ 2 (random 5)))
+           (queue (cl-fast-queues:make-safe-lifo :init-length num)) ; :waitp t))
+           (items (loop for i below (random 20) collect (random 10)))
+           (push-threads nil)
+           (pop-threads nil)
+           (items-sum (apply #'+ items)))
+      (setf *dequeue-sum* (make-atomic 0))
+      (setf *enqueue-sum* (make-atomic 0))
+      (dolist (item items)
+        (let ((it item))
+          (push (bt:make-thread #'(lambda ()
+                                    (let ((res (cl-fast-queues:enqueue it queue)))
+                                      (if (integerp res)
+                                          (atomic-incf (atomic-place *enqueue-sum*) res)))))
+                push-threads)))
+      (dolist (item items)
+        (declare (ignore item))
+        (push (bt:make-thread #'(lambda ()
+                                  (let ((res (cl-fast-queues:dequeue queue nil)))
+                                    (if (integerp res)
+                                        (atomic-incf (atomic-place *dequeue-sum*) res)))))
+              pop-threads))
+      (dolist (th push-threads) (bt:join-thread th))
+      (dolist (th pop-threads) (bt:join-thread th))
+      (is = items-sum (atomic-place *enqueue-sum*))
+      (is = items-sum (+ (atomic-place *dequeue-sum*) (apply #'+ (cl-fast-queues:queue-to-list queue))))
+      )))
