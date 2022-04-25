@@ -2,316 +2,304 @@
 
 ;;; ------- safe-lifo -------
 
-(define-test make-safe-lifo :parent safe-lifo
-  (finish (make-safe-lifo))
-  (finish (make-safe-lifo :init-length 1))
-  (finish (make-safe-lifo :waitp t))
-  (finish (make-safe-lifo :init-length 1 :waitp t))
-  (finish (make-safe-lifo :init-length 1 :waitp nil))
-  (fail (make-safe-lifo :init-length 0)))
+(define-test make-safe-lifo-exp :parent safe-lifo-exp
+  (finish (cl-fast-queues:make-safe-lifo))
+  (finish (cl-fast-queues:make-safe-lifo :init-length 2))
+  (fail (cl-fast-queues:make-safe-lifo :init-length 1))
+  (fail (cl-fast-queues:make-safe-lifo :init-length 0)))
 
-
-(define-test safe-lifo-queue-count-0 :parent safe-lifo
+(define-test safe-lifo-exp-queue-count-0 :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue 0 queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue 0 queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-lifo-queue-count-int :parent safe-fifo
+(define-test safe-lifo-exp-queue-count-int :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue (random 10) queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue (random 10) queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-lifo-queue-count-str :parent safe-lifo
+(define-test safe-lifo-exp-queue-count-str :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue (write-to-string (random 10)) queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue (write-to-string (random 10)) queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-lifo-queue-count-nil :parent safe-lifo
+(define-test safe-lifo-exp-queue-count-nil :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue nil queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue nil queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-lifo-queue-empty-p :parent safe-lifo
+(define-test safe-lifo-exp-queue-empty-p :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
       (dotimes (j count)
-        (enqueue nil queue)
-        (is eq nil (queue-empty-p queue)))
+        (cl-fast-queues:enqueue nil queue)
+        (is eq nil (cl-fast-queues:queue-empty-p queue)))
       (dotimes (j count)
-        (dequeue queue))
-      (is eq t (queue-empty-p queue))
+        (cl-fast-queues:dequeue queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (k (random 10))
-        (dequeue queue)
-        (is eq t (queue-empty-p queue))))))
+        (cl-fast-queues:dequeue queue)
+        (is eq t (cl-fast-queues:queue-empty-p queue))))))
 
-(define-test safe-lifo-enqueue :parent safe-lifo
+(define-test safe-lifo-exp-enqueue :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
       (dotimes (j count)
         (let ((item (random 10)))
-          (is = item (enqueue item queue)))))))
+          (is = item (cl-fast-queues:enqueue item queue)))))))
 
-(define-test safe-lifo-queue-peek :parent safe-lifo
+(define-test safe-lifo-exp-queue-peek :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100))
           (first-item (elt '(0 nil "" :xxx 888) (random 5))))
-      (is-values (queue-peek queue) (eql nil) (eql nil))
-      (enqueue first-item queue)
+      (is-values (cl-fast-queues:queue-peek queue) (eql nil) (eql nil))
+      (cl-fast-queues:enqueue first-item queue)
       (format t "enqueue finished.~%")
-      (is equal first-item (queue-peek queue))
+      (is equal first-item (cl-fast-queues:queue-peek queue))
       (dotimes (j count)
         (let ((item (random 10)))
-          (enqueue item queue)
-          (is = item (queue-peek queue)))))))
+          (cl-fast-queues:enqueue item queue)
+          (is = item (cl-fast-queues:queue-peek queue)))))))
 
-(define-test safe-lifo-dequeue :parent safe-lifo
+(define-test safe-lifo-exp-dequeue :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
            (items (loop for i below (1+ (random 100)) collect (random 100)))
            (items-rev (reverse items)))
-      (is eq cl-speedy-lifo::*underflow-flag* (dequeue queue))
+      (is eq cl-speedy-lifo::*underflow-flag* (cl-fast-queues:dequeue queue))
       (dolist (item items)
-        (enqueue item queue))
+        (cl-fast-queues:enqueue item queue))
       (dolist (item items-rev)
-        (is = item (dequeue queue)))
-      (is eq cl-speedy-lifo::*underflow-flag* (dequeue queue)))))
+        (is = item (cl-fast-queues:dequeue queue)))
+      (is eq cl-speedy-lifo::*underflow-flag* (cl-fast-queues:dequeue queue)))))
 
-(define-test safe-lifo-queue-find :parent safe-lifo
-  (dotimes (i *loop-test-times*)
+(define-test safe-lifo-exp-queue-find :parent safe-lifo-exp
+  (dotimes (i *loop-times*)
     (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
           (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
-          (queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil)))
+          (queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10))))) ; :waitp nil)))
       (dolist (item find-items) ; find in empty queue
-        (false (queue-find item queue)))
+        (false (cl-fast-queues:queue-find item queue)))
       (dolist (item (append other-items find-items)) ; enqueue, `find-items' euqueue last
-        (enqueue item queue))
+        (cl-fast-queues:enqueue item queue))
       (dolist (item find-items) ; find queue
-        (true (queue-find item queue)))
+        (true (cl-fast-queues:queue-find item queue)))
       (dolist (item other-items) ; find queue
-        (true (queue-find item queue)))
+        (true (cl-fast-queues:queue-find item queue)))
       (dolist (item find-items) ; dequeue
-        (dequeue queue))
+        (cl-fast-queues:dequeue queue))
       (dolist (item find-items) ; find dequeued items
-        (false (queue-find item queue)))
+        (false (cl-fast-queues:queue-find item queue)))
       (dolist (item other-items) ; empty queue
-        (dequeue queue))
+        (cl-fast-queues:dequeue queue))
       (dolist (item (nshuffle (append find-items other-items))) ; enqueue random list
-        (enqueue item queue))
+        (cl-fast-queues:enqueue item queue))
       (dolist (item find-items) ; find queue
-        (true (queue-find item queue))))))
+        (true (cl-fast-queues:queue-find item queue))))))
 
-(define-test safe-lifo-queue-flush :parent safe-lifo
-  (dotimes (i *loop-test-times*)
+(define-test safe-lifo-exp-queue-flush :parent safe-lifo-exp
+  (dotimes (i *loop-times*)
     (let* ((count (random 20))
-           (queue (make-safe-lifo :init-length (1+ (random 10)))))
-      (finish (cl-fast-queues::queue-flush queue))
+           (queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))))
+      (finish (cl-fast-queues:queue-flush queue))
       (dotimes (i count)
-        (enqueue i queue))
-      (finish (cl-fast-queues::queue-flush queue))
-      (is eql t (queue-empty-p queue))
+        (cl-fast-queues:enqueue i queue))
+      (finish (cl-fast-queues:queue-flush queue))
+      (is eql t (cl-fast-queues:queue-empty-p queue))
       (dotimes (i count)
-        (enqueue i queue))
-      (finish (cl-fast-queues::queue-flush queue))
-      (is eql t (queue-empty-p queue)))))
+        (cl-fast-queues:enqueue i queue))
+      (finish (cl-fast-queues:queue-flush queue))
+      (is eql t (cl-fast-queues:queue-empty-p queue)))))
 
-(define-test safe-lifo-queue<->list :parent safe-lifo
-  (dotimes (i *loop-test-times*)
-    (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
-          (queue1 (make-safe-lifo :init-length (1+ (random 50)) :waitp nil))
+(define-test safe-lifo-exp-queue<->list :parent safe-lifo-exp
+  (dotimes (i *loop-times*)
+    (let ((items (loop for i below (+ 2 (random 50)) collect (random 10)))
+          (queue1 (cl-fast-queues:make-safe-lifo :init-length (+  2 (random 50)))) ; :waitp nil))
           (queue2 nil))
       (dolist (item items)
-        (enqueue item queue1))
-      (is equal (reverse items) (queue-to-list queue1))
-      (setf queue2 (list-to-queue items :safe-lifo))
-      (is equal (reverse items) (queue-to-list queue2)))))
+        (cl-fast-queues:enqueue item queue1))
+      (is equal (reverse items) (cl-fast-queues:queue-to-list queue1))
+      (setf queue2 (cl-fast-queues:list-to-queue items :safe-lifo))
+      (is equal (reverse items) (cl-fast-queues:queue-to-list queue2)))))
 
 
 ;;; ------- tests in multi-threads ------
 
 ;;; safe-lifo, threads test
 
-(define-test safe-lifo-enqueue-threads :parent safe-lifo
+(define-test safe-lifo-exp-enqueue-threads :parent safe-lifo-exp
   "enqueue in threads, dequeue in the main thread"
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10))))
           (items (loop for i below (random 100) collect (random 100)))
+          (threads nil)
           (total 0))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1) ; make sure all threads exited
-      (is = (length items) (queue-count queue))
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (cl-fast-queues:enqueue it queue)))
+           threads)))
+      (dolist (th threads) (bt:join-thread th))
+      (is = (length items) (cl-fast-queues:queue-count queue))
       (dotimes (j (length items))
-        (setf total (+ total (dequeue queue))))
+        (setf total (+ total (cl-fast-queues:dequeue queue))))
       (is = total (apply #'+ items))
-      (true (queue-empty-p queue)))))
+      (true (cl-fast-queues:queue-empty-p queue)))))
 
-(define-test safe-lifo-dequeue-threads-no-wait :parent safe-lifo
+(define-test safe-lifo-exp-dequeue-threads-no-wait :parent safe-lifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10)))) ; :waitp nil))
            (items (loop for i below (random 100) collect (random 100)))
+           (push-threads nil)
            (total (apply #'+ items)))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (cl-fast-queues:enqueue it queue)))
+           push-threads)))
+      (dolist (th push-threads) (bt:join-thread th))
       (is = total
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
-      (true (queue-empty-p queue)))))
+                                (bt:make-thread #'(lambda () (cl-fast-queues:dequeue queue t)))))))
+      (true (cl-fast-queues:queue-empty-p queue)))))
 
-(define-test safe-lifo-dequeue-threads-wait :parent safe-lifo
+(define-test safe-lifo-exp-dequeue-threads-wait :parent safe-lifo-exp
   "enqueue in threads, then dequeue in threads with waitp true"
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
+  (dotimes (i *loop-times*)
+    (let* ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10))))
            (items (loop for i below (random 100) collect (random 100)))
+           (threads nil)
            (total (apply #'+ items)))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (cl-fast-queues:enqueue it queue)))
+           threads)))
+      (dolist (th threads) (bt:join-thread th))
       (is = total
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
-      (true (queue-empty-p queue)))))
+                                (bt:make-thread #'(lambda () (cl-fast-queues:dequeue queue t)))))))
+      (true (cl-fast-queues:queue-empty-p queue)))))
 
-#+sbcl
-(define-test safe-lifo-dequeue-threads-wait2-0 :parent safe-lifo
-  "dequeue in threads with waitp true, then enqueue in threads"
-  ;; stil failed in several cases
+(define-test safe-lifo-exp-dequeue/enqueue-threads :parent safe-lifo-exp
+  "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
   #+sbcl (sb-ext:gc :full t)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
-           (items (loop for i below (random 100) collect (random 100)))
-           (total (list 0)))
-      (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (sb-ext:atomic-incf (car total)
-                                (dequeue queue t))
-                            :name "dequeue thread")))
-      (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))
-                        :name "enqueue thread"))
-      (sleep 0.1)
-      (is = (car total) (apply #'+ items))
-      (true (queue-empty-p queue)))))
-
-
-#+sbcl
-(define-test safe-lifo-dequeue-threads-wait2 :parent safe-lifo
-  "dequeue with waitp true in threads, then enqueue in threads"
-  #+sbcl (sb-ext:gc :full t)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo :init-length (1+ (random 5)) :waitp t))
+  (dotimes (i *loop-times*)
+    (let* ((num (+ 2 (random 5)))
+           (queue (cl-fast-queues:make-safe-lifo :init-length num)) ; :waitp t))
            (items (loop for i below (random 20) collect (random 10)))
+           (push-threads nil)
+           (pop-threads nil)
+           (dequeued+remainded nil)
            (items-sum (apply #'+ items)))
       (setf *dequeue-list* (list))
       (setf *enqueue-list* (list))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (sb-ext:atomic-push (dequeue queue nil)
-                                                *dequeue-list*))))
+        (push
+         (bt:make-thread #'(lambda ()
+                             (sb-ext:atomic-push (cl-fast-queues:dequeue queue nil)
+                                                 *dequeue-list*)))
+         pop-threads))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (sb-ext:atomic-push (enqueue item queue)
-                                                *enqueue-list*))))
-      (sleep 0.1)
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                            (sb-ext:atomic-push (cl-fast-queues:enqueue it queue)
+                                                *enqueue-list*)))
+           push-threads)))
+      (dolist (th pop-threads) (bt:join-thread th))
+      (dolist (th push-threads) (bt:join-thread th))
+      (setf dequeued+remainded (append (remove-if-not #'integerp *dequeue-list*)
+                                       (cl-fast-queues:queue-to-list queue)))
       (is = items-sum (apply #'+ *enqueue-list*))
-      (is = items-sum (apply #'+ *dequeue-list*))
-      ;;(when (not (= items-sum (apply #'+ *dequeue-list*)))
-      ;;(format t "items: ~d~%enque: ~d~%deque: ~d~%~%" items *enqueue-list* *dequeue-list*)
-      #+:ignore(unless (and (every #'integerp *dequeue-list*)
-                            (every #'integerp *enqueue-list*))
-                 (sleep 0.2)
-                 (format t "enque again: ~d~%deque again: ~d~%" *enqueue-list* *dequeue-list*))
-      (true (queue-empty-p queue))
+      (is = items-sum (apply #'+ dequeued+remainded))
+      (unless (= items-sum (apply #'+ dequeued+remainded))
+        (format t "~&init-nul: ~d~&items: ~d~&dequeue-list: ~d~&remainder: ~d~%"
+                num
+                items
+                *dequeue-list*
+                (cl-fast-queues:queue-to-list queue)))
       )))
 
-#+sbcl
-(define-test safe-lifo-dequeue-threads-wait3 :parent safe-lifo
-  #+sbcl (sb-ext:gc :full t)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
-           (items (loop for i below (random 100) collect (random 100)))
-           (total (list 0)))
-      (bt:make-thread
-       #'(lambda ()
-           (dolist (item items)
-             (sb-ext:atomic-incf (car total)
-                 (bt:join-thread
-                  (bt:make-thread #'(lambda () (dequeue queue t))))))))
-      (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
-      (is = (car total) (apply #'+ items))
-      (true (queue-empty-p queue)))))
 
-#+sbcl
-(define-test safe-lifo-dequeue-threads-wait4 :parent safe-lifo
-  "dequeue and atomic-incf in threads, enqueue in threads"
-  #+sbcl (sb-ext:gc :full t)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-lifo :init-length (1+ (random 10)) :waitp t))
+(define-test safe-lifo-exp-enqueue/dequeue-threads :parent safe-lifo-exp
+  "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
+  (dotimes (i *loop-times*)
+    (sb-ext:gc :full t)
+    (setf *send-to-push-list* nil)
+    (setf *pop-list* nil)
+    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10))))
            (items (loop for i below (random 100) collect (random 100)))
-           (total (list 0)))
+           (push-threads nil)
+           (pop-threads nil)
+           (dequeued+remainded nil))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (sb-ext:atomic-incf (car total)
-                                (dequeue queue t)))))
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (sb-ext:atomic-push it *send-to-push-list*)
+                               (cl-fast-queues:enqueue it queue)))
+           push-threads)))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
-      (is = (car total) (apply #'+ items))
-      (true (queue-empty-p queue)))))
+        (push
+         (bt:make-thread #'(lambda () (sb-ext:atomic-push (cl-fast-queues:dequeue queue t) *pop-list*)))
+         pop-threads))
+
+      (dolist (th pop-threads) (bt:join-thread th))
+      (dolist (th push-threads) (bt:join-thread th))
+
+      (setf dequeued+remainded (append (remove-if-not #'integerp *pop-list*)
+                                       (cl-fast-queues:queue-to-list queue)))
+      (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*)))))

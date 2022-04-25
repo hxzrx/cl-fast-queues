@@ -1,291 +1,327 @@
+;;;; The safe-fast-fifo and safe-fast-lifo structs are reconstructed
+;;;; and the corresponding safe-queues test cases are rewritten,
+;;;; since the new structs do not have waitp slot anymore,
+;;;; many test cases about threads were deprecated and the some new ones were made.
+
 (in-package :cl-fast-queues-tests)
 
+
+;;;; -----------------------------------------------------------
+;;;; safe-queues.lisp
+;;;; All these tests are copied from the tests of the unsafe-queues for single thread testing
 ;;; ------- safe-fifo -------
 
-(define-test make-safe-fifo :parent safe-fifo
-  (finish (make-safe-fifo))
-  (finish (make-safe-fifo :init-length 1))
-  (finish (make-safe-fifo :waitp t))
-  (finish (make-safe-fifo :init-length 1 :waitp t))
-  (finish (make-safe-fifo :init-length 1 :waitp nil))
-  (fail (make-safe-fifo :init-length 0)))
+(define-test make-safe-fifo-exp :parent safe-fifo-exp
+  (finish (cl-fast-queues:make-safe-fifo))
+  (finish (cl-fast-queues:make-safe-fifo :init-length 2))
+  (fail (cl-fast-queues:make-safe-fifo :init-length 1))
+  (fail (cl-fast-queues:make-safe-fifo :init-length 0)))
 
-(define-test safe-fifo-queue-count-0 :parent safe-fifo
+(define-test safe-fifo-exp-queue-count-0 :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue 0 queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue 0 queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-fifo-queue-count-int :parent safe-fifo
+(define-test safe-fifo-exp-queue-count-int :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue (random 10) queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue (random 10) queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-fifo-queue-count-str :parent safe-fifo
+(define-test safe-fifo-exp-queue-count-str :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue (write-to-string (random 10)) queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue (write-to-string (random 10)) queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-fifo-queue-count-nil :parent safe-fifo
+(define-test safe-fifo-exp-queue-count-nil :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
-      (is = 0 (queue-count queue))
-      (is eq t (queue-empty-p queue))
+      (is = 0 (cl-fast-queues:queue-count queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (j count)
-        (enqueue nil queue))
-      (is = count (queue-count queue)))))
+        (cl-fast-queues:enqueue nil queue))
+      (is = count (cl-fast-queues:queue-count queue)))))
 
-(define-test safe-fifo-queue-empty-p :parent safe-fifo
+(define-test safe-fifo-exp-queue-empty-p :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
-          (count (random 100)))
+  (dotimes (i *loop-times*)
+    (let* ((len 2);(1+ (random 10)))
+           (queue (cl-fast-queues:make-safe-fifo :init-length len)) ; :waitp nil))
+           (count 5));(random 100)))
       (dotimes (j count)
-        (enqueue nil queue)
-        (is eq nil (queue-empty-p queue)))
+        (cl-fast-queues:enqueue nil queue)
+        (is eq nil (cl-fast-queues:queue-empty-p queue)))
       (dotimes (j count)
-        (dequeue queue))
-      (is eq t (queue-empty-p queue))
+        (cl-fast-queues:dequeue queue))
+      (is eq t (cl-fast-queues:queue-empty-p queue))
       (dotimes (k (random 10))
-        (dequeue queue)
-        (is eq t (queue-empty-p queue))))))
+        (cl-fast-queues:dequeue queue)
+        (is eq t (cl-fast-queues:queue-empty-p queue))))))
 
-(define-test safe-fifo-enqueue :parent safe-fifo
+(define-test safe-fifo-exp-enqueue :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100)))
       (dotimes (j count)
         (let ((item (random 10)))
-          (is = item (enqueue item queue)))))))
+          (is = item (cl-fast-queues:enqueue item queue)))))))
 
-(define-test safe-fifo-queue-peek :parent safe-fifo
+(define-test safe-fifo-exp-queue-peek :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
           (count (random 100))
           (first-item (elt '(0 nil "" :xxx 888) (random 5))))
-      (is-values (queue-peek queue) (eql nil) (eql nil))
-      (enqueue first-item queue)
-      (is equal first-item (queue-peek queue))
+      (is-values (cl-fast-queues:queue-peek queue) (eql nil) (eql nil))
+      (cl-fast-queues:enqueue first-item queue)
+      (is equal first-item (cl-fast-queues:queue-peek queue))
       (dotimes (j count)
         (let ((item (random 10)))
-          (enqueue item queue)
-          (is equal first-item (queue-peek queue)))))))
+          (cl-fast-queues:enqueue item queue)
+          (is equal first-item (cl-fast-queues:queue-peek queue)))))))
 
-(define-test safe-fifo-dequeue :parent safe-fifo
+(define-test safe-fifo-exp-dequeue :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil))
+  (dotimes (i *loop-times*)
+    (let* ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp nil))
            (items (loop for i below (1+ (random 100)) collect (random 100)))
            #+:ignore(items-rev (reverse items)))
-      (is eq cl-speedy-queue:*underflow-flag* (dequeue queue))
+      (is eq cl-speedy-queue:*underflow-flag* (cl-fast-queues:dequeue queue))
       (dolist (item items)
-        (enqueue item queue))
+        (cl-fast-queues:enqueue item queue))
       (dolist (item items)
-        (is = item (dequeue queue)))
-      (is eq cl-speedy-queue:*underflow-flag* (dequeue queue)))))
+        (is = item (cl-fast-queues:dequeue queue)))
+      (is eq cl-speedy-queue:*underflow-flag* (cl-fast-queues:dequeue queue)))))
 
-(define-test safe-fifo-queue-find :parent safe-fifo
-  (dotimes (i *loop-test-times*)
-    (let ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
-          (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
-          (queue (make-safe-fifo :init-length (1+ (random 10)) :waitp nil)))
+(define-test safe-fifo-exp-queue-find :parent safe-fifo-exp
+  (dotimes (i *loop-times*)
+    (let* ((find-items (loop for i below (1+ (random 10)) collect (random 10)))
+           (other-items (loop for i below (1+ (random 10)) collect (+ 100 (random 10))))
+           (len (+ 2 (random 10)))
+           (queue (cl-fast-queues:make-safe-fifo :init-length len))) ; :waitp nil)))
       (dolist (item find-items) ; find in empty queue
-        (false (queue-find item queue)))
+        (false (cl-fast-queues:queue-find item queue)))
       (dolist (item (append find-items other-items)) ; enqueue
-        (enqueue item queue))
+        (cl-fast-queues:enqueue item queue))
       (dolist (item find-items) ; find queue
-        (true (queue-find item queue)))
+        (true (cl-fast-queues:queue-find item queue)))
       (dolist (item other-items) ; find queue
-        (true (queue-find item queue)))
+        (true (cl-fast-queues:queue-find item queue)))
       (dolist (item find-items) ; dequeue
-        (dequeue queue))
+        (cl-fast-queues:dequeue queue))
       (dolist (item find-items) ; find dequeued items
-        (false (queue-find item queue)))
+        (false (cl-fast-queues:queue-find item queue)))
       (dolist (item other-items) ; empty queue
-        (dequeue queue))
+        (cl-fast-queues:dequeue queue))
       (dolist (item (nshuffle (append find-items other-items))) ; enqueue random list
-        (enqueue item queue))
+        (cl-fast-queues:enqueue item queue))
       (dolist (item find-items) ; find queue
-        (true (queue-find item queue))))))
+        (true (cl-fast-queues:queue-find item queue))))))
 
-(define-test safe-fifo-queue-flush :parent safe-fifo
-  (dotimes (i *loop-test-times*)
+(define-test safe-fifo-exp-queue-flush :parent safe-fifo-exp
+  (dotimes (i *loop-times*)
     (let* ((count (random 20))
-           (queue (make-safe-fifo :init-length (1+ (random 10)))))
-      (finish (cl-fast-queues::queue-flush queue))
+           (queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))))
+      (finish (cl-fast-queues:queue-flush queue))
       (dotimes (i count)
-        (enqueue i queue))
-      (finish (cl-fast-queues::queue-flush queue))
-      (is eql t (queue-empty-p queue))
+        (cl-fast-queues:enqueue i queue))
+      (finish (cl-fast-queues:queue-flush queue))
+      (is eql t (cl-fast-queues:queue-empty-p queue))
       (dotimes (i count)
-        (enqueue i queue))
-      (finish (cl-fast-queues::queue-flush queue))
-      (is eql t (queue-empty-p queue)))))
+        (cl-fast-queues:enqueue i queue))
+      (finish (cl-fast-queues:queue-flush queue))
+      (is eql t (cl-fast-queues:queue-empty-p queue)))))
 
-(define-test safe-fifo-queue<->list :parent safe-fifo
-  (dotimes (i *loop-test-times*)
-    (let ((items (loop for i below (1+ (random 50)) collect (random 10)))
-          (queue1 (make-safe-fifo :init-length (1+ (random 50)) :waitp nil))
+(define-test safe-fifo-exp-queue<->list :parent safe-fifo-exp
+  (dotimes (i *loop-times*)
+    (let ((items (loop for i below (+ 2 (random 50)) collect (random 10)))
+          (queue1 (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 50)))) ; :waitp nil))
           (queue2 nil))
       (dolist (item items)
-        (enqueue item queue1))
-      (is equal items (queue-to-list queue1))
-      (setf queue2 (list-to-queue items :safe-fifo))
-      (is equal items (queue-to-list queue2)))))
+        (cl-fast-queues:enqueue item queue1))
+      (is equal items (cl-fast-queues:queue-to-list queue1))
+      (setf queue2 (cl-fast-queues:list-to-queue items :safe-fifo))
+      (is equal items (cl-fast-queues:queue-to-list queue2)))))
 
 
 ;;; ------- tests in multi-threads ------
 
 ;;; safe-fifo, threads test
 
-(define-test safe-fifo-enqueue-threads :parent safe-fifo
+(define-test safe-fifo-exp-enqueue-threads :parent safe-fifo-exp
   "enqueue in threads, dequeue in the main thread"
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
+  (dotimes (i *loop-times*)
+    (let ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10))))
           (items (loop for i below (random 100) collect (random 100)))
+          (enqueue-sum (make-atomic 0))
+          (threads nil)
           (total 0))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1) ; make sure all threads exited
-      (is = (length items) (queue-count queue))
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (atomic-incf (atomic-place enqueue-sum) (cl-fast-queues:enqueue it queue))))
+           threads)))
+      (dolist (th threads)
+        (bt:join-thread th))
+      (unless (= (atomic-place enqueue-sum) (apply #'+ items))
+        (unless (= (atomic-place enqueue-sum) (apply #'+ items))
+          (format t "~&A: expect total: ~d, real total: ~d, ~&items: ~d~&queue-to-list: ~d~%"
+                  (apply #'+ items)
+                  (atomic-place enqueue-sum)
+                  items
+                  (cl-fast-queues:queue-to-list queue))))
+      (is = (length items) (cl-fast-queues:queue-count queue))
+      (let ((queue-list (cl-fast-queues:queue-to-list queue)))
+        (unless (and (every #'integerp queue-list) (= (apply #'+ items) (apply #'+ queue-list)))
+          (format t "~&B: expect total: ~d, real total: ~d, ~&items: ~d~%queue-list: ~d~%raw queue: ~d~%"
+                  (apply #'+ items)
+                  (apply #'+ (cl-fast-queues:queue-to-list queue))
+                  items
+                  (cl-fast-queues:queue-to-list queue)
+                  queue)))
       (dotimes (j (length items))
-        (setf total (+ total (dequeue queue))))
+        (setf total (+ total (cl-fast-queues:dequeue queue))))
       (is = total (apply #'+ items))
-      (true (queue-empty-p queue)))))
+      (true (cl-fast-queues:queue-empty-p queue)))))
 
-(define-test safe-fifo-dequeue-threads-no-wait :parent safe-fifo
+(define-test safe-fifo-exp-dequeue-threads :parent safe-fifo-exp
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
+  (dotimes (i *loop-times*)
+    (let* ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10)))) ; :waitp t))
            (items (loop for i below (random 100) collect (random 100)))
+           (push-threads nil)
+           ;;(pop-threads nil)
            (total (apply #'+ items)))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (cl-fast-queues:enqueue it queue)))
+           push-threads)))
+      (dolist (th push-threads) (bt:join-thread th))
       (is = total
           (apply #'+
                  (loop for j below (length items)
                        collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
-      (true (queue-empty-p queue)))))
+                                (bt:make-thread #'(lambda () (cl-fast-queues:dequeue queue t)))))))
+      (true (cl-fast-queues:queue-empty-p queue)))))
 
-(define-test safe-fifo-dequeue-threads-wait :parent safe-fifo
-  "enqueue in threads, then dequeue in threads"
-  #+sbcl (sb-ext:gc :full t)
-  #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
-           (items (loop for i below (random 100) collect (random 100)))
-           (total (apply #'+ items)))
-      (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
-      (is = total
-          (apply #'+
-                 (loop for j below (length items)
-                       collect (bt:join-thread
-                                (bt:make-thread #'(lambda () (dequeue queue t)))))))
-      (true (queue-empty-p queue)))))
 
-(define-test safe-fifo-dequeue-threads-wait2 :parent safe-fifo
-  "dequeue with waitp true in threads, then enqueue in threads"
-  ;; ccl running failed
-  #+sbcl (sb-ext:gc :full t)
-  #+ccl (ccl:gc)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
+(define-test safe-fifo-exp-enqueue-threads2 :parent safe-fifo-exp
+  "test if all elements are enqueued correctly"
+  (dotimes (i *loop-times*)
+    (sb-ext:gc :full t)
+    (setf *send-to-push-list* nil)
+    (let* ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10))))
            (items (loop for i below (random 100) collect (random 100)))
-           (total 0))
-      (bt:make-thread
-       #'(lambda ()
-           (setf total
-                 (apply #'+
-                        (loop for j below (length items)
-                              collect (bt:join-thread
-                                       (bt:make-thread #'(lambda () (dequeue queue t)))))))))
+           (threads nil)
+           (real-push-list nil))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
-      (is = total (apply #'+ items))
-      (true (queue-empty-p queue))
-      )))
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (sb-ext:atomic-push it *send-to-push-list*)
+                               (cl-fast-queues:enqueue it queue)))
+           threads)))
+      (dolist (th threads) (bt:join-thread th))
+      (setf real-push-list (cl-fast-queues:queue-to-list queue))
+      (unless (= (apply #'+ *send-to-push-list*) (apply #'+ real-push-list))
+        (is = (apply #'+ *send-to-push-list*) (apply #'+ (cl-fast-queues:queue-to-list queue)))
+        (unless (= (apply #'+ *send-to-push-list*) (apply #'+ (cl-fast-queues:queue-to-list queue)))
+          (format t "*send-to-push-list*: ~d~%queue list: ~d~%queue~d~%"
+                  *send-to-push-list*
+                  (cl-fast-queues:queue-to-list queue) queue)))
+      (is = (apply #'+ *send-to-push-list*) (apply #'+ real-push-list)))))
 
-#+sbcl
-(define-test safe-fifo-dequeue-threads-wait3 :parent safe-fifo
-  #+sbcl (sb-ext:gc :full t)
-  (dotimes (i *loop-test-times*)
-    (let* ((queue (make-safe-fifo :init-length (1+ (random 10)) :waitp t))
+(define-test safe-fifo-exp-enqueue/dequeue-threads :parent safe-fifo-exp
+  "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
+  (dotimes (i *loop-times*)
+    (sb-ext:gc :full t)
+    (setf *send-to-push-list* nil)
+    (setf *pop-list* nil)
+    (let* ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10))))
            (items (loop for i below (random 100) collect (random 100)))
-           (total (list 0)))
-      (bt:make-thread
-       #'(lambda ()
-           (dolist (item items)
-             (sb-ext:atomic-incf (car total)
-                 (bt:join-thread
-                  (bt:make-thread #'(lambda () (dequeue queue t))))))))
+           (push-threads nil)
+           (pop-threads nil)
+           (dequeued+remainded nil))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
-      (is = (car total) (apply #'+ items))
-      (true (queue-empty-p queue)))))
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (sb-ext:atomic-push it *send-to-push-list*)
+                               (cl-fast-queues:enqueue it queue)))
+           push-threads)))
+      (dolist (item items)
+        (push
+         (bt:make-thread #'(lambda () (sb-ext:atomic-push (cl-fast-queues:dequeue queue t) *pop-list*)))
+         pop-threads))
 
-#+sbcl
-(define-test safe-fifo-dequeue-threads-wait4 :parent safe-fifo
-  "dequeue and atomic-incf in threads, enqueue in threads"
-  ;; still failed after using bt's apiv2 if sole using (bt2:condition-wait cvar lock) in the def of dequeue,
-  ;; but succeeded when I use a loop in the def of dequeue.
-  #+sbcl (sb-ext:gc :full t)
-  (dotimes (i *loop-test-times*)
-    (let* ((len (1+ (random 10)))
-           (queue (make-safe-fifo :init-length len :waitp t))
+      (dolist (th pop-threads) (bt:join-thread th))
+      (dolist (th push-threads) (bt:join-thread th))
+
+      (setf dequeued+remainded (append (remove-if-not #'integerp *pop-list*)
+                                       (cl-fast-queues:queue-to-list queue)))
+      (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*)))))
+
+(define-test safe-fifo-exp-dequeue/enqueue-threads :parent safe-fifo-exp
+  "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
+  (dotimes (i *loop-times*)
+    (if (= 0 (mod (1+ i) 1000)) (format t "~&~%TIMES: ~D~%" (1+ I)))
+    (sb-ext:gc :full t)
+    (setf *send-to-push-list* nil)
+    (setf *pop-list* nil)
+    (let* ((queue (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 10))))
            (items (loop for i below (random 100) collect (random 100)))
-           (total (list 0)))
+           (push-threads nil)
+           (pop-threads nil)
+           (dequeued+remainded nil))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (sb-ext:atomic-incf (car total)
-                                (dequeue queue t)))))
+        (push
+         (bt:make-thread #'(lambda () (sb-ext:atomic-push (cl-fast-queues:dequeue queue t) *pop-list*)))
+         pop-threads))
       (dolist (item items)
-        (bt:make-thread #'(lambda ()
-                            (enqueue item queue))))
-      (sleep 0.1)
-      (is = (car total) (apply #'+ items))
-      (when (/= (car total) (apply #'+ items))
-        (format t "init-len: ~d~%items:~%~d~%queue:~%~d~%" len items queue))
-      (true (queue-empty-p queue)))))
+        (let ((it item))
+          (push
+           (bt:make-thread #'(lambda ()
+                               (sb-ext:atomic-push it *send-to-push-list*)
+                               (cl-fast-queues:enqueue it queue)))
+           push-threads)))
+
+      (dolist (th push-threads) (bt:join-thread th))
+      (dolist (th pop-threads) (bt:join-thread th))
+
+      (setf dequeued+remainded (append (remove-if-not #'integerp *pop-list*)
+                                       (cl-fast-queues:queue-to-list queue)))
+      (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*)))))
