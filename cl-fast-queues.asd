@@ -11,6 +11,7 @@
                :cl-speedy-lifo)
   :components ((:file "packages")
                (:file "specials")
+               (:file "generics")
                (:file "speedy-queue")
                (:file "speedy-queue-safe")
                (:file "list-queue")
@@ -21,7 +22,7 @@
 (defsystem "cl-fast-queues/tests"
   :author "He Xiang-zhi"
   :license "MIT"
-  :version "1.2.0"
+  :version "1.4.0"
   :serial t
   :depends-on (:cl-fast-queues
                :parachute)
