@@ -319,9 +319,10 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%enqueue object queue))
 
-(defun dequeue (queue)
+(defun dequeue (queue &optional keep-in-queue-p)
   "Dequeues QUEUE."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (ignore keep-in-queue-p))
   (%dequeue queue))
 
 (defun queue-to-list (queue)
