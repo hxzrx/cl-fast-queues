@@ -16,6 +16,7 @@
 (defun make-safe-fifo (&key (init-length 1000)
                        &aux (queue (cl-speedy-queue-safe:make-queue init-length))
                          (underlay (cl-speedy-queue-safe:make-queue 100)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (fixnum init-length))
   (cl-speedy-queue-safe:enqueue queue underlay)
   (make-safe-fast-fifo :underlay underlay
@@ -37,7 +38,7 @@
            (cl-speedy-queue-safe:queue-empty-p pop-queue)))))
 
 (defmethod enqueue (object (queue safe-fast-fifo)) ; faster
-  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (let* ((push-queue (safe-fifo-push-queue queue))
            (res (cl-speedy-queue-safe:enqueue object push-queue)))
@@ -74,7 +75,7 @@
                   (values (first res) (second res)))))))))
 
 (defmethod dequeue ((queue safe-fast-fifo) &optional keep-in-queue-p)
-  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (ignore keep-in-queue-p))
   (with-slots (underlay lock) queue
     (let* ((pop-queue (safe-fifo-pop-queue queue))
@@ -135,7 +136,6 @@ and the order of the returned list is the same as enqueue order. (so that they w
 (defstruct (safe-fast-lifo (:conc-name safe-lifo-))
   (cur-queue nil :type simple-vector)
   (underlay nil :type simple-vector)
-  ;;(queue-list nil :type list)
   (lock (bt:make-lock "SAFE-LIFO-LOCK"))
   (cvar (bt:make-condition-variable :name "SAFE-LIFO-CVAR")))
 
@@ -146,6 +146,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
 (defun make-safe-lifo (&key (init-length 1000)
                        &aux (queue (cl-speedy-lifo-safe:make-queue init-length))
                          (underlay (cl-speedy-lifo-safe:make-queue 100)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
   (cl-speedy-lifo-safe:enqueue queue underlay)
@@ -159,14 +160,14 @@ and the order of the returned list is the same as enqueue order. (so that they w
                        (cl-speedy-lifo-safe:queue-to-list (safe-lifo-underlay queue))))))
 
 (defmethod queue-empty-p ((queue safe-fast-lifo))
-  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (bt:with-lock-held (lock)
-      (and (= (cl-speedy-lifo-safe:queue-count underlay) 1)
+      (and (= (the fixnum (cl-speedy-lifo-safe:queue-count underlay)) 1)
            (cl-speedy-lifo-safe:queue-empty-p (cl-speedy-lifo-safe:queue-peek underlay))))))
 
 (defmethod enqueue (object (queue safe-fast-lifo))
-  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
     (let* ((cur-queue (safe-lifo-cur-queue queue))
            (res (cl-speedy-lifo-safe:enqueue object cur-queue)))
@@ -202,7 +203,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
                   (values (first res) (second res)))))))))
 
 (defmethod dequeue ((queue safe-fast-lifo) &optional keep-in-queue-p)
-  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (ignore keep-in-queue-p))
   (with-slots (underlay lock) queue
     (let* ((cur-queue (safe-lifo-cur-queue queue))
@@ -229,6 +230,7 @@ So if `item' is nil, the returned value will be nil whatever."
 
 (defmethod queue-flush ((queue safe-fast-lifo))
   "Empty the `queue', do not use it when there some thread is doing dequeue/enqueue."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (cur-queue underlay lock) queue
     (bt:with-lock-held (lock)
       (setf (safe-lifo-cur-queue queue) (cl-speedy-lifo-safe:queue-flush cur-queue))
