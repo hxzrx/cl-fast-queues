@@ -274,17 +274,20 @@
                 (cl-fast-queues:queue-to-list queue)))
       )))
 
-#+sbcl
+#+:sbcl
 (define-test safe-lifo-exp-enqueue/dequeue-threads :parent safe-lifo-exp
   "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
   (dotimes (i *loop-times*)
+    (format t "~%~%~%~d~%" i)
     (sb-ext:gc :full t)
     (setf *send-to-push-list* nil)
     (setf *pop-list* nil)
-    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10))))
-           (items (loop for i below (random 100) collect (random 100)))
+    (setf *dequeue-sum* (make-atomic 0))
+    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length 3));(+ 2 (random 10))))
+           (items (list 30 13 80 21 99 6 17 24 32 57 19 86 62 48 79 33 22 89 57 53 22 42 69 9));;(loop for i below (random 100) collect (random 100)))
            (push-threads nil)
            (pop-threads nil)
+           (remainder 0)
            (dequeued+remainded nil))
       (dolist (item items)
         (let ((it item))
@@ -293,9 +296,14 @@
                                (sb-ext:atomic-push it *send-to-push-list*)
                                (cl-fast-queues:enqueue it queue)))
            push-threads)))
+      ;;(dolist (th push-threads) (bt:join-thread th))
+      ;;(format t "~&queue list: ~d~%" (cl-fast-queues:queue-to-list queue))
       (dolist (item items)
         (push
-         (bt:make-thread #'(lambda () (sb-ext:atomic-push (cl-fast-queues:dequeue queue t) *pop-list*)))
+         (bt:make-thread #'(lambda ()
+                             (let ((res (cl-fast-queues:dequeue queue t)))
+                               (when (integerp res) (atomic-incf (atomic-place *dequeue-sum*) res))
+                               (sb-ext:atomic-push res *pop-list*))))
          pop-threads))
 
       (dolist (th pop-threads) (bt:join-thread th))
@@ -303,7 +311,19 @@
 
       (setf dequeued+remainded (append (remove-if-not #'integerp *pop-list*)
                                        (cl-fast-queues:queue-to-list queue)))
-      (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*)))))
+      (setf remainder (+ (atomic-place *dequeue-sum*) (apply #'+ (cl-fast-queues:queue-to-list queue))))
+
+      (is = (apply #'+ items) (apply #'+ *send-to-push-list*))
+      (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*))
+      (is = remainder (apply #'+ *send-to-push-list*))
+
+      (unless (= remainder (apply #'+ *send-to-push-list*))
+        (format t "~&enqueue sum: ~d, dequeue sum: ~d~%" (apply #'+ *send-to-push-list*) remainder))
+      (unless (= (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*))
+        (format t "~&enqueue sum: ~d, dequeue sum: ~d~%" (apply #'+ *send-to-push-list*) remainder)
+        (format t "~&queue: ~d~&items: ~d~&*pop-list*: ~d~&*send-to-push-list*: ~d~%"
+                queue items *pop-list* *send-to-push-list*))
+      )))
 
 #+ccl
 (define-test safe-lifo-exp-dequeue/enqueue-threads :parent safe-lifo-exp
