@@ -1,10 +1,6 @@
 (in-package :cl-fast-queues-tests)
 
 
-(defparameter *enqueue-sum* (make-atomic 0))
-(defparameter *dequeue-sum* (make-atomic 0))
-
-
 (define-test speedy-queue-flush :parent speedy-queue-safe
   (fail (cl-speedy-queue-safe:make-queue 0))
   (fail (cl-speedy-queue-safe:make-queue 1))
