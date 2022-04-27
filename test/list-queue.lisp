@@ -14,6 +14,7 @@
       (finish (cl-fast-queues::%list-queue-flush queue))
       (is eq t (cl-fast-queues::%list-queue-empty-p queue)))))
 
+#+sbcl
 (define-test list-queue-find :parent list-queue
   (dotimes (i *loop-test-times*)
     (let* ((count (1+ (random 10)))
