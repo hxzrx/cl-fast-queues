@@ -2,6 +2,9 @@
 
 (in-package :dlist)
 
+(declaim (inline %make-node node-content node-prev node-next))
+(declaim (inline %make-dlist dlist-head dlist-tail))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defstruct (node (:constructor %make-node (content prev next)))
     content prev next) ; node definition
@@ -49,6 +52,7 @@
   (funcall test (node-content node1)
            (node-content node2)))
 
+(declaim (inline insert-between))
 (defun insert-between (dlist before after data)
   "Insert a fresh link containing DATA after existing link BEFORE if not nil and before existing link AFTER if not nil.
 Note that all node between BEFORE and AFTER will be lost."
@@ -65,30 +69,35 @@ Note that all node between BEFORE and AFTER will be lost."
         (setf (node-prev after) new-node))
     new-node))
 
+(declaim (inline insert-before))
 (defun insert-before (dlist node data)
   "Insert a fresh link containing DATA before existing link NODE"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist) (node node))
   (insert-between dlist (node-prev node) node data))
 
+(declaim (inline insert-after))
 (defun insert-after (dlist node data)
   "Insert a fresh link containing DATA after existing link NODE"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist) (node node))
   (insert-between dlist node (node-next node) data))
 
+(declaim (inline insert-head))
 (defun insert-head (dlist data)
   "Insert a fresh link containing DATA at the head of DLIST"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist))
   (insert-between dlist nil (dlist-head dlist) data))
 
+(declaim (inline insert-tail))
 (defun insert-tail (dlist data)
   "Insert a fresh link containing DATA at the tail of DLIST"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist))
   (insert-between dlist (dlist-tail dlist) nil data))
 
+(declaim (inline remove-node))
 (defun remove-node (dlist node)
   "Remove link NODE from DLIST and return its content"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -102,16 +111,19 @@ Note that all node between BEFORE and AFTER will be lost."
         (setf (dlist-tail dlist) before)
         (setf (node-prev after) before))))
 
+(declaim (inline remove-tail))
 (defun remove-tail (dlist)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist))
   (remove-node dlist (dlist-tail dlist)))
 
+(declaim (inline remove-head))
 (defun remove-head (dlist)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist))
   (remove-node dlist (dlist-head dlist)))
 
+(declaim (inline node-head-p))
 (defun node-head-p (node)
   "Test if node is the head of some dlist."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -119,6 +131,7 @@ Note that all node between BEFORE and AFTER will be lost."
   (when (node-p node)
     (eq (node-prev node) *null-node*)))
 
+(declaim (inline node-tail-p))
 (defun node-tail-p (node)
   "Test if node is the tail of some dlist."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -126,14 +139,17 @@ Note that all node between BEFORE and AFTER will be lost."
   (when (node-p node)
     (eq (node-next node) *null-node*)))
 
+(declaim (inline dlist-head-p))
 (defun dlist-head-p (dlist node)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (eq node (dlist-head dlist)))
 
+(declaim (inline dlist-tail-p))
 (defun dlist-tail-p (dlist node)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (eq node (dlist-tail dlist)))
 
+(declaim (inline dlist-elements))
 (defun dlist-elements (dlist)
   "Returns the elements of DLIST as a list"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -147,6 +163,7 @@ Note that all node between BEFORE and AFTER will be lost."
         (let ((head (dlist-head dlist)))
           (reverse (extract-values head nil))))))
 
+(declaim (inline dlist-length))
 (defun dlist-length (dlist)
   "Return the count of the nodes of DLIST"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -158,6 +175,7 @@ Note that all node between BEFORE and AFTER will be lost."
             until (eq node *null-node*)
             finally (return len))))
 
+(declaim (inline dlist-single-p))
 (defun dlist-single-p (dlist)
   "Return true if DLIST has only one node, else return nil."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -165,16 +183,19 @@ Note that all node between BEFORE and AFTER will be lost."
   (and (eq (dlist-head dlist) (dlist-tail dlist))
        (dlist-head dlist)))
 
+(declaim (inline dlist-empty-p))
 (defun dlist-empty-p (dlist)
   "Return true if DLIST has none nodes."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (dlist dlist))
   (null (dlist-head dlist)))
 
+(declaim (inline dlist-to-list))
 (defun dlist-to-list (dlist)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (dlist-elements dlist))
 
+(declaim (inline list-to-dlist))
 (defun list-to-dlist (content-list)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list content-list))
