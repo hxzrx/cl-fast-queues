@@ -153,7 +153,7 @@
 (define-test safe-lifo-exp-queue<->list :parent safe-lifo-exp
   (dotimes (i *loop-times*)
     (let ((items (loop for i below (+ 2 (random 50)) collect (random 10)))
-          (queue1 (cl-fast-queues:make-safe-lifo :init-length (+  2 (random 50)))) ; :waitp nil))
+          (queue1 (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 50)))) ; :waitp nil))
           (queue2 nil))
       (dolist (item items)
         (cl-fast-queues:enqueue item queue1))
@@ -277,14 +277,14 @@
 #+:sbcl
 (define-test safe-lifo-exp-enqueue/dequeue-threads :parent safe-lifo-exp
   "dequeue in threads, enqueue in threads, check if the sum of the dequeued items and the ones still in the queue are equal."
-  (dotimes (i *loop-times*)
-    (format t "~%~%~%~d~%" i)
+  (dotimes (i 10000);*loop-times*)
+    ;;(format t "~%~%~%~d~%" i)
     (sb-ext:gc :full t)
     (setf *send-to-push-list* nil)
     (setf *pop-list* nil)
     (setf *dequeue-sum* (make-atomic 0))
-    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length 3));(+ 2 (random 10))))
-           (items (list 30 13 80 21 99 6 17 24 32 57 19 86 62 48 79 33 22 89 57 53 22 42 69 9));;(loop for i below (random 100) collect (random 100)))
+    (let* ((queue (cl-fast-queues:make-safe-lifo :init-length (+ 2 (random 10))))
+           (items (loop for i below (random 100) collect (random 100)))
            (push-threads nil)
            (pop-threads nil)
            (remainder 0)
@@ -317,9 +317,9 @@
       (is = (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*))
       (is = remainder (apply #'+ *send-to-push-list*))
 
-      (unless (= remainder (apply #'+ *send-to-push-list*))
+      #+:ignore(unless (= remainder (apply #'+ *send-to-push-list*))
         (format t "~&enqueue sum: ~d, dequeue sum: ~d~%" (apply #'+ *send-to-push-list*) remainder))
-      (unless (= (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*))
+      #+:ignore(unless (= (apply #'+ dequeued+remainded) (apply #'+ *send-to-push-list*))
         (format t "~&enqueue sum: ~d, dequeue sum: ~d~%" (apply #'+ *send-to-push-list*) remainder)
         (format t "~&queue: ~d~&items: ~d~&*pop-list*: ~d~&*send-to-push-list*: ~d~%"
                 queue items *pop-list* *send-to-push-list*))
