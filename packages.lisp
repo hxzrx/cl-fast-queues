@@ -1,4 +1,3 @@
-
 (defpackage :cl-fast-queues
   (:use :cl)
   (:nicknames :fastq)
@@ -24,3 +23,34 @@
    :*underflow-flag*
    :*enlarge-size*
    ))
+
+(defpackage :dlist
+  (:use :cl)
+  (:export
+   :node
+   :make-node
+   :node-p
+   :node-content
+   :node-prev
+   :node-next
+   :dlist
+   :make-dlist
+   :dlist-p
+   :dlist-head
+   :dlist-tail
+   :dlist-head-p
+   :dlist-tail-p
+   :dlist-length
+   :dlist-single-p
+   :dlist-empty-p
+   :insert-between
+   :insert-before
+   :insert-after
+   :insert-head
+   :insert-tail
+   :remove-node
+   :remove-tail
+   :dlist-elements
+   :dlist-to-list
+   :list-to-dlist
+   :*null-node*))
