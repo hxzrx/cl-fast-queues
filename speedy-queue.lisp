@@ -2,24 +2,6 @@
 ;;;; The changes are, popping an empty queue will return an flag keyword,
 ;;;; and pushing an object into an full queue will return another flag keyword.
 
-(cl:defpackage #:cl-speedy-queue
-  (:use :cl)
-  (:export
-   :make-queue
-   :queue-to-list
-   :list-to-queue
-   :queue-count
-   :queue-length
-   :queue-peek
-   :queue-full-p
-   :queue-empty-p
-   :enqueue
-   :dequeue
-   :queue-find
-   :queue-flush
-   :*overflow-flag*
-   :*underflow-flag*))
-
 (cl:in-package #:cl-speedy-queue)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)

@@ -54,29 +54,7 @@
 ;; Now, all tests passed!
 
 
-(cl:defpackage #:cl-speedy-queue-safe
-  (:use :cl)
-  (:nicknames :safe-queue)
-  (:export
-   :make-queue
-   :queue-to-list
-   :list-to-queue
-   :queue-count
-   :queue-length
-   :queue-peek
-   :queue-full-p
-   :queue-empty-p
-   :enqueue
-   :dequeue
-   :queue-find
-   :queue-flush
-   :*overflow-flag*
-   :*underflow-flag*
-   :*dummy*
-   :*max-queue-length*))
-
-
-(cl:in-package #:cl-speedy-queue-safe)
+(in-package #:cl-speedy-queue-safe)
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)

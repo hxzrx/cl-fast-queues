@@ -24,6 +24,45 @@
    :*enlarge-size*
    ))
 
+(defpackage :cl-speedy-queue
+  (:use :cl)
+  (:export
+   :make-queue
+   :queue-to-list
+   :list-to-queue
+   :queue-count
+   :queue-length
+   :queue-peek
+   :queue-full-p
+   :queue-empty-p
+   :enqueue
+   :dequeue
+   :queue-find
+   :queue-flush
+   :*overflow-flag*
+   :*underflow-flag*))
+
+(defpackage #:cl-speedy-queue-safe
+  (:use :cl)
+  (:nicknames :safe-queue)
+  (:export
+   :make-queue
+   :queue-to-list
+   :list-to-queue
+   :queue-count
+   :queue-length
+   :queue-peek
+   :queue-full-p
+   :queue-empty-p
+   :enqueue
+   :dequeue
+   :queue-find
+   :queue-flush
+   :*overflow-flag*
+   :*underflow-flag*
+   :*dummy*
+   :*max-queue-length*))
+
 (defpackage :dlist
   (:use :cl)
   (:export
