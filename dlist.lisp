@@ -1,6 +1,5 @@
 ;;;; https://rosettacode.org/wiki/Doubly-linked_list/Definition#Common_Lisp
 
-
 (in-package :dlist)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -15,6 +14,7 @@
     head tail))
 
 (defun inspect-node (node)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (if (eq node *null-node*)
       "NULL-NODE"
       (format nil "~d" (node-content node))))
@@ -26,17 +26,16 @@
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (%make-node content prev next))
 
-
 (defun inspect-dlist (dlist)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (format nil "Contents: (~{~d~^ ~})" (dlist-elements dlist)))
-#+:ignore
 (defmethod print-object ((dlist dlist) stream)
   (print-unreadable-object (dlist stream :type t :identity t)
     (format stream (inspect-dlist dlist))))
 
 (defun make-dlist (&rest contents)
   "Make a doubly-linked list with initial contents."
-  ;; (make-dlist 1 2 3 4)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (let ((dlist (%make-dlist nil nil)))
     (dolist (content contents)
       (insert-tail dlist content))
@@ -44,7 +43,8 @@
 
 (defun node-content-compare (node1 node2 &optional (test #'equal))
   "Compare the contents of two node objects using equal."
-  #+:ignore(declare (node node1 node2)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (node node1 node2)
            (function test))
   (funcall test (node-content node1)
            (node-content node2)))
@@ -52,8 +52,8 @@
 (defun insert-between (dlist before after data)
   "Insert a fresh link containing DATA after existing link BEFORE if not nil and before existing link AFTER if not nil.
 Note that all node between BEFORE and AFTER will be lost."
-  #+:ignore(declare (dlist dlist)
-           (node before after))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (let ((new-node (make-node data before after)))
     (if (null before)
         (setf (dlist-head dlist) new-node
@@ -67,27 +67,32 @@ Note that all node between BEFORE and AFTER will be lost."
 
 (defun insert-before (dlist node data)
   "Insert a fresh link containing DATA before existing link NODE"
-  ;(declare (dlist dlist) (node node))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist) (node node))
   (insert-between dlist (node-prev node) node data))
 
 (defun insert-after (dlist node data)
   "Insert a fresh link containing DATA after existing link NODE"
-  ;(declare (dlist dlist) (node node))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist) (node node))
   (insert-between dlist node (node-next node) data))
 
 (defun insert-head (dlist data)
   "Insert a fresh link containing DATA at the head of DLIST"
-  ;(declare (dlist dlist) (node node))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (insert-between dlist nil (dlist-head dlist) data))
 
 (defun insert-tail (dlist data)
   "Insert a fresh link containing DATA at the tail of DLIST"
-  ;(declare (dlist dlist) (node node))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (insert-between dlist (dlist-tail dlist) nil data))
 
 (defun remove-node (dlist node)
   "Remove link NODE from DLIST and return its content"
-  ;(declare (dlist dlist) (node node))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist) (node node))
   (let ((before (node-prev node))
         (after (node-next node)))
     (if (eq *null-node* before)
@@ -98,25 +103,41 @@ Note that all node between BEFORE and AFTER will be lost."
         (setf (node-prev after) before))))
 
 (defun remove-tail (dlist)
-  ;;(declare (dlist dlist))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (remove-node dlist (dlist-tail dlist)))
+
+(defun remove-head (dlist)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
+  (remove-node dlist (dlist-head dlist)))
 
 (defun node-head-p (node)
   "Test if node is the head of some dlist."
-  ;(declare (node node))
-  (eq (node-prev node) *null-node*))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (node node))
+  (when (node-p node)
+    (eq (node-prev node) *null-node*)))
+
 (defun node-tail-p (node)
   "Test if node is the tail of some dlist."
-  ;(declare (node node))
-  (eq (node-next node) *null-node*))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (node node))
+  (when (node-p node)
+    (eq (node-next node) *null-node*)))
 
 (defun dlist-head-p (dlist node)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (eq node (dlist-head dlist)))
+
 (defun dlist-tail-p (dlist node)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (eq node (dlist-tail dlist)))
 
 (defun dlist-elements (dlist)
   "Returns the elements of DLIST as a list"
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (if (dlist-empty-p dlist)
       nil
       (labels ((extract-values (node acc)
@@ -128,8 +149,8 @@ Note that all node between BEFORE and AFTER will be lost."
 
 (defun dlist-length (dlist)
   "Return the count of the nodes of DLIST"
-  ;;(dlist-length (make-dlist 1 2 3 4 5))
-  ;(declare (dlist dlist))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (if (dlist-empty-p dlist)
       0
       (loop for node = (dlist-head dlist) then (node-next node)
@@ -139,16 +160,22 @@ Note that all node between BEFORE and AFTER will be lost."
 
 (defun dlist-single-p (dlist)
   "Return true if DLIST has only one node, else return nil."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (and (eq (dlist-head dlist) (dlist-tail dlist))
        (dlist-head dlist)))
 
 (defun dlist-empty-p (dlist)
   "Return true if DLIST has none nodes."
-  ;(declare (dlist dlist))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (dlist dlist))
   (null (dlist-head dlist)))
 
 (defun dlist-to-list (dlist)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
   (dlist-elements dlist))
 
 (defun list-to-dlist (content-list)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (list content-list))
   (apply #'make-dlist content-list))
