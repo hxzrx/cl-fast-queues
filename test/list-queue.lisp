@@ -24,6 +24,6 @@
            (obj-out (+ count (random 10))))
       (dotimes (i most-enq)
         (cl-fast-queues::%list-queue-enqueue i queue))
-      (is eq t (cl-fast-queues::%list-queue-find obj-in queue))
+      (is eq obj-in (cl-fast-queues::%list-queue-find obj-in queue))
       (is eq nil (cl-fast-queues::%list-queue-find obj-out queue))
       (is eq nil (cl-fast-queues::%list-queue-find nil queue)))))
