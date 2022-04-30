@@ -1,7 +1,7 @@
 (asdf:defsystem #:cl-fast-queues
   :author "He Xiangzhi <hexiangzhi@gmail.com>"
   :licence "MIT"
-  :version "1.4.1"
+  :version "1.4.2"
   :description "cl-fast-queues implements arrays based, optimized unbounded LIFO and FIFO queues for both unsafe and safe accessing."
   :serial t
   :in-order-to ((test-op (test-op "cl-fast-queues/tests")))
@@ -15,6 +15,7 @@
                (:file "speedy-queue")
                (:file "speedy-queue-safe")
                (:file "list-queue")
+               (:file "dlist")
                (:file "unsafe-queues")
                (:file "safe-queues")))
 
@@ -34,6 +35,7 @@
                              (:file "speedy-queue")
                              (:file "speedy-queue-safe")
                              (:file "list-queue")
+                             (:file "dlist")
                              (:file "unsafe-fifo")
                              (:file "unsafe-lifo")
                              (:file "safe-fifo")
