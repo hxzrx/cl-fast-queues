@@ -41,20 +41,6 @@ but it's enough in this lib since the car of lst will never be nil."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-queue:queue-empty-p (unsafe-fifo-pop-queue queue)))
 
-#+:ignore
-(defmethod enqueue (object (queue unsafe-fast-fifo))
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (push-queue queue-list) queue
-    (declare (list queue-list))
-    ;; when push-queue is full, add a new longer queue at the end of the list
-    (when (cl-speedy-queue:queue-full-p push-queue)
-      (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
-                                               #.*enlarge-size*))))
-             (new-queue (cl-speedy-queue:make-queue new-len)))
-        (%list-queue-enqueue new-queue queue-list)
-        (setf push-queue new-queue)))
-    (cl-speedy-queue:enqueue object push-queue)))
-
 (defmethod enqueue (object (queue unsafe-fast-fifo)) ; faster
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (push-queue underlay) queue
