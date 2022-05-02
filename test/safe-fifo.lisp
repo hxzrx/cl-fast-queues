@@ -69,9 +69,9 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-times*)
-    (let* ((len 2);(1+ (random 10)))
+    (let* ((len (1+ (random 10)))
            (queue (cl-fast-queues:make-safe-fifo :init-length len)) ; :waitp nil))
-           (count 5));(random 100)))
+           (count (random 100)))
       (dotimes (j count)
         (cl-fast-queues:enqueue nil queue)
         (is eq nil (cl-fast-queues:queue-empty-p queue)))
@@ -162,7 +162,7 @@
 
 (define-test safe-fifo-exp-queue<->list :parent safe-fifo-exp
   (dotimes (i *loop-times*)
-    (let ((items (loop for i below (+ 2 (random 50)) collect (random 10)))
+    (let ((items (loop for i below (+ 2 (random 100)) collect (random 10)))
           (queue1 (cl-fast-queues:make-safe-fifo :init-length (+ 2 (random 50)))) ; :waitp nil))
           (queue2 nil))
       (dolist (item items)
