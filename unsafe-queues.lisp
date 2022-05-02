@@ -73,16 +73,6 @@ but it's enough in this lib since the car of lst will never be nil."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-queue:queue-peek (unsafe-fifo-pop-queue queue)))
 
-#+:ignore
-(defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t))
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (pop-queue queue-list) queue
-    (prog1 (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)
-      (when (and (cl-speedy-queue:queue-empty-p pop-queue)
-                 (null (%singularp (%list-queue-contents queue-list))))
-        (%list-queue-dequeue queue-list)
-        (setf pop-queue (%list-queue-peek queue-list))))))
-
 (defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t)) ; faster
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (pop-queue underlay) queue
@@ -131,7 +121,7 @@ and the order of the returned list is the same as queue order. (so that they wil
 
 (defstruct (unsafe-fast-lifo (:conc-name unsafe-lifo-))
   (cur-queue nil :type simple-vector)
-  (queue-list nil :type list))
+  (underlay  nil :type dlist:dlist))
 
 (defun unsafe-lifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -141,43 +131,29 @@ and the order of the returned list is the same as queue order. (so that they wil
                          &aux (queue (cl-speedy-lifo:make-queue init-length)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
-  (make-unsafe-fast-lifo :queue-list (list queue)
+  (make-unsafe-fast-lifo :underlay (dlist:make-dlist queue)
                          :cur-queue queue))
 
 (defmethod queue-count ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (apply #'+ (mapcar #'cl-speedy-lifo:queue-count
-                     (unsafe-lifo-queue-list queue))))
+                     (dlist:dlist-elements (unsafe-lifo-underlay queue)))))
 
 (defmethod queue-empty-p ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-lifo:queue-empty-p
    (unsafe-lifo-cur-queue queue)))
 
-#+:ignore
 (defmethod enqueue (object (queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list) queue
-    (declare (single-float *enlarge-size*))
-    ;; when push-queue is full, push a new longer queue to queue-list
-    (when (cl-speedy-lifo:queue-full-p cur-queue)
-      (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo:queue-length cur-queue))
-                                               *enlarge-size*))))
-             (new-queue (cl-speedy-lifo:make-queue new-len)))
-        (push new-queue queue-list)
-        (setf cur-queue new-queue)))
-    (cl-speedy-lifo:enqueue object cur-queue)))
-
-(defmethod enqueue (object (queue unsafe-fast-lifo))
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list) queue
-    ;; when push-queue is full, push a new longer queue to queue-list
+  (with-slots (cur-queue underlay) queue
+    ;; when push-queue is full, push a new longer queue to underlay
     (let ((res (cl-speedy-lifo:enqueue object cur-queue)))
       (if (eq res #.*overflow-flag*)
           (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-lifo:queue-length cur-queue))
                                                    #.*enlarge-size*))))
                  (new-queue (cl-speedy-lifo:make-queue new-len)))
-            (push new-queue queue-list)
+            (dlist:insert-tail underlay new-queue)
             (setf cur-queue new-queue)
             (cl-speedy-lifo:enqueue object cur-queue))
           res))))
@@ -186,26 +162,21 @@ and the order of the returned list is the same as queue order. (so that they wil
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-lifo:queue-peek (unsafe-lifo-cur-queue queue)))
 
-#+:ignore
 (defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list) queue
-    (declare (list queue-list))
-    (prog1 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)
-      (when (and (cl-speedy-lifo:queue-empty-p cur-queue)
-                 (null (%singularp queue-list)))
-        (setf queue-list (cdr queue-list)
-              cur-queue (car  queue-list))))))
-
-(defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t))
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (cur-queue queue-list) queue
-    (let ((res (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)))
-      (if (and (eq res #.*underflow-flag*)
-               (null (%singularp queue-list)))
-          (progn (setf queue-list (cdr queue-list)
-                       cur-queue  (car queue-list))
-                 (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p))
+  (with-slots (underlay cur-queue) queue
+    (let* ((res (cl-speedy-lifo:dequeue cur-queue keep-in-queue-p)))
+      (if (eq res *underflow-flag*)
+          (let ((head (dlist:dlist-head underlay))
+                (tail (dlist:dlist-tail underlay)))
+            (if (eq head tail) ; if underlay has only one subqueue, return underflow
+                *underflow-flag*
+                (let* ((prev (dlist:node-prev tail))
+                       (pop-queue (dlist:node-content prev))
+                       (pop-item (cl-speedy-lifo:dequeue pop-queue keep-in-queue-p)))
+                  (when (cl-speedy-lifo-safe:queue-empty-p pop-queue)
+                    (dlist:remove-node underlay prev))
+                  pop-item)))
           res))))
 
 (defmethod queue-find (item (queue unsafe-fast-lifo) &key (key #'identity) (test #'eql))
@@ -213,21 +184,23 @@ and the order of the returned list is the same as queue order. (so that they wil
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (some #'(lambda (ulifo) (cl-speedy-lifo:queue-find item ulifo :key key :test test))
-        (unsafe-lifo-queue-list queue)))
+        (dlist:dlist-elements (unsafe-lifo-underlay queue))))
 
 (defmethod queue-flush ((queue unsafe-fast-lifo))
   "Empty the `queue'"
-  (with-slots (cur-queue queue-list) queue
-    (setf cur-queue (cl-speedy-lifo:queue-flush cur-queue))
-    (setf (cdr queue-list) nil
-          (car queue-list) cur-queue)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (with-slots (cur-queue) queue
+    (setf (unsafe-lifo-cur-queue queue) (cl-speedy-lifo:queue-flush cur-queue))
+    (setf (slot-value queue 'underlay) (dlist:make-dlist))
+    (dlist:insert-head (slot-value queue 'underlay) cur-queue)
     queue))
 
 (defmethod queue-to-list ((queue unsafe-fast-lifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (mapcan #'cl-speedy-lifo:queue-to-list (unsafe-lifo-queue-list queue)))
+  (mapcan #'cl-speedy-lifo:queue-to-list
+          (reverse (dlist:dlist-elements (unsafe-lifo-underlay queue)))))
 
 (defmethod list-to-queue (list (queue-type (eql :unsafe-lifo)))
   "Make a queue, then enque the items in the list from left to right."
