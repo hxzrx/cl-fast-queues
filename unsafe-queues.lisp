@@ -17,7 +17,7 @@ but it's enough in this lib since the car of lst will never be nil."
 (defstruct (unsafe-fast-fifo (:conc-name unsafe-fifo-))
   (push-queue nil :type simple-vector)
   (pop-queue  nil :type simple-vector)
-  (queue-list nil :type list))
+  (underlay   nil :type list))
 
 (defun unsafe-fifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -25,17 +25,17 @@ but it's enough in this lib since the car of lst will never be nil."
 
 (defun make-unsafe-fifo (&key (init-length 1000)
                          &aux (queue (cl-speedy-queue:make-queue init-length))
-                           (queue-list (%make-list-queue)))
+                           (underlay (%make-list-queue)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
-  (make-unsafe-fast-fifo :queue-list (%list-queue-enqueue queue queue-list)
+  (make-unsafe-fast-fifo :underlay (%list-queue-enqueue queue underlay)
                          :push-queue queue
                          :pop-queue queue))
 
 (defmethod queue-count ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (the fixnum (apply #'+ (mapcar #'cl-speedy-queue:queue-count
-                                 (%list-queue-contents (unsafe-fifo-queue-list queue))))))
+                                 (%list-queue-contents (unsafe-fifo-underlay queue))))))
 
 (defmethod queue-empty-p ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -57,14 +57,14 @@ but it's enough in this lib since the car of lst will never be nil."
 
 (defmethod enqueue (object (queue unsafe-fast-fifo)) ; faster
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (push-queue queue-list) queue
-    (declare (list queue-list))
+  (with-slots (push-queue underlay) queue
+    (declare (list underlay))
     (let ((res (cl-speedy-queue:enqueue object push-queue)))
       (if (eq res #.*overflow-flag*)
           (let* ((new-len (the fixnum (truncate (* (the fixnum (cl-speedy-queue:queue-length push-queue))
                                                    #.*enlarge-size*))))
                  (new-queue (cl-speedy-queue:make-queue new-len)))
-            (%list-queue-enqueue new-queue queue-list)
+            (%list-queue-enqueue new-queue underlay)
             (setf push-queue new-queue)
             (cl-speedy-queue:enqueue object push-queue))
           res))))
@@ -85,12 +85,12 @@ but it's enough in this lib since the car of lst will never be nil."
 
 (defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t)) ; faster
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (pop-queue queue-list) queue
+  (with-slots (pop-queue underlay) queue
     (let ((res (cl-speedy-queue:dequeue pop-queue keep-in-queue-p)))
       (if (and (eq res *underflow-flag*)
-               (null (%singularp (%list-queue-contents queue-list))))
-          (progn (%list-queue-dequeue queue-list)
-                 (setf pop-queue (%list-queue-peek queue-list))
+               (null (%singularp (%list-queue-contents underlay))))
+          (progn (%list-queue-dequeue underlay)
+                 (setf pop-queue (%list-queue-peek underlay))
                  (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
           res))))
 
@@ -99,15 +99,15 @@ but it's enough in this lib since the car of lst will never be nil."
 So if `item' is nil, the returned value will be nil whatever."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (some #'(lambda (ufifo) (cl-speedy-queue:queue-find item ufifo :key key :test test))
-        (%list-queue-contents (unsafe-fifo-queue-list queue))))
+        (%list-queue-contents (unsafe-fifo-underlay queue))))
 
 (defmethod queue-flush ((queue unsafe-fast-fifo))
   "Empty the `queue'"
-  (with-slots (push-queue pop-queue queue-list) queue
+  (with-slots (push-queue pop-queue underlay) queue
     (setf push-queue (cl-speedy-queue:queue-flush push-queue)
           pop-queue push-queue)
-    (%list-queue-flush queue-list)
-    (%list-queue-enqueue push-queue queue-list)
+    (%list-queue-flush underlay)
+    (%list-queue-enqueue push-queue underlay)
     queue))
 
 (defmethod queue-to-list ((queue unsafe-fast-fifo))
@@ -115,7 +115,7 @@ So if `item' is nil, the returned value will be nil whatever."
 and the order of the returned list is the same as queue order. (so that they will have the same dequeue order)"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (mapcan #'cl-speedy-queue:queue-to-list
-          (%list-queue-contents (unsafe-fifo-queue-list queue))))
+          (%list-queue-contents (unsafe-fifo-underlay queue))))
 
 (defmethod list-to-queue (list (queue-type (eql :unsafe-fifo)))
   "Make a queue, then enque the items in the list from left to right."
