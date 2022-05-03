@@ -3,14 +3,14 @@
 (declaim (inline %singularp))
 (declaim (inline queue-empty-p))
 (declaim (inline %unsafe-queue-empty-p))
+(declaim (inline unsafe-fifo-push-queue unsafe-fifo-pop-queue unsafe-fifo-underlay))
+(declaim (inline unsafe-lifo-cur-queue unsafe-lifo-underlay))
 
 (defun %singularp (lst)
-  "Test if `lst' has only one element.
-Note that it's not sufficient to test all singular list,
-but it's enough in this lib since the car of lst will never be nil."
+  "Test if `lst' has only one element."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list lst))
-  (and (eq nil (cdr lst))))
+  (and lst (eq nil (cdr lst))))
 
 ;;; fifo unbound queue
 
