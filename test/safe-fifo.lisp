@@ -69,7 +69,7 @@
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
   (dotimes (i *loop-times*)
-    (let* ((len (1+ (random 10)))
+    (let* ((len (+ 2 (random 10)))
            (queue (cl-fast-queues:make-safe-fifo :init-length len)) ; :waitp nil))
            (count (random 100)))
       (dotimes (j count)
