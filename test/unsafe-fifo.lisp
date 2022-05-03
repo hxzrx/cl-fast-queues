@@ -8,9 +8,9 @@
   (fail (make-unsafe-fifo :init-length 0)))
 
 (define-test %singularp :parent cl-fast-queues-tests
-  (is eql t (cl-fast-queues::%singularp nil))
-  (is eql t (cl-fast-queues::%singularp '(0)))
-  (is eql t (cl-fast-queues::%singularp '(nil)))
+  (is eql nil (cl-fast-queues::%singularp nil))
+  (is eql t   (cl-fast-queues::%singularp '(0)))
+  (is eql t   (cl-fast-queues::%singularp '(nil)))
   (is eql nil (cl-fast-queues::%singularp '(0 1))))
 
 (define-test unsafe-fifo-queue-count-0 :parent unsafe-fifo

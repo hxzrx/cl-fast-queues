@@ -2,6 +2,12 @@
 
 ;;; ------- safe-lifo -------
 
+(define-test %remove-second :parent safe-lifo-exp
+  (is equal '(0)     (cl-fast-queues::%remove-second '(0)))
+  (is equal '(0)     (cl-fast-queues::%remove-second '(0 1)))
+  (is equal '(0 2)   (cl-fast-queues::%remove-second '(0 1 2)))
+  (is equal '(0 2 3) (cl-fast-queues::%remove-second '(0 1 2 3))))
+
 (define-test make-safe-lifo-exp :parent safe-lifo-exp
   (finish (cl-fast-queues:make-safe-lifo))
   (finish (cl-fast-queues:make-safe-lifo :init-length 2))
