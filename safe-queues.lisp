@@ -1,11 +1,10 @@
 (in-package :cl-fast-queues)
 
-
-;;; safe unbound fifo queue
-
 (declaim (inline safe-fifo-push-queue safe-fifo-pop-queue safe-fifo-underlay))
 (declaim (inline safe-lifo-cur-queue safe-fifo-underlay))
 (declaim (inline queue-count queue-empty-p enqueue dequeue queue-peek queue-find queue-flush))
+
+;;; safe unbound fifo queue
 
 (defstruct (safe-fast-fifo (:conc-name safe-fifo-))
   (push-queue nil :type simple-vector)
@@ -168,13 +167,11 @@ and the order of the returned list is the same as enqueue order. (so that they w
       queue)))
 
 (defun make-safe-lifo (&key (init-length 1000)
-                       &aux (queue (make-subqueue init-length))
-                         (underlay (list)))
+                       &aux (queue (make-subqueue init-length)))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (fixnum init-length))
   (assert (> init-length 0))
-  (push queue underlay)
-  (make-safe-fast-lifo :underlay underlay
+  (make-safe-fast-lifo :underlay (list queue)
                        :cur-queue queue))
 
 (defmethod queue-count ((queue safe-fast-lifo))
@@ -192,9 +189,8 @@ and the order of the returned list is the same as enqueue order. (so that they w
 
 (defmethod enqueue (object (queue safe-fast-lifo)) ; enqueue should always be successful
   (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (with-slots (underlay lock) queue
-    (let* ((cur-queue (safe-lifo-cur-queue queue))
-           (res (cl-speedy-lifo-safe:enqueue object cur-queue)))
+  (with-slots (cur-queue underlay lock) queue
+    (let ((res (cl-speedy-lifo-safe:enqueue object cur-queue)))
       (if (eq res #.*overflow-flag*)
           (bt:with-lock-held (lock)
             (let* ((retry-cur-queue (safe-lifo-cur-queue queue)) ; check if push-queue was changed by another thread
@@ -209,13 +205,6 @@ and the order of the returned list is the same as enqueue order. (so that they w
                     ret)
                   retry-res)))
           res))))
-
-(declaim (inline %remove-second))
-(defun %remove-second (lst)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (declare (list lst))
-  (setf (cdr lst) (cddr lst))
-  lst)
 
 (defmethod queue-peek ((queue safe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
