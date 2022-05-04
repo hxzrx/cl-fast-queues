@@ -7,7 +7,7 @@
 (define-test cl-fast-queues-tests)
 
 (define-test list-queue :parent cl-fast-queues-tests)
-(define-test dlist :parent cl-fast-queues-tests)
+;;(define-test dlist :parent cl-fast-queues-tests)
 
 (define-test speedy-queue :parent cl-fast-queues-tests)
 (define-test speedy-queue-safe :parent cl-fast-queues-tests)
