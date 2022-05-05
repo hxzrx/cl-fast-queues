@@ -1,21 +1,21 @@
 (in-package :cl-fast-queues)
 
-(declaim (inline safe-fifo-push-queue safe-fifo-pop-queue safe-fifo-underlay))
-(declaim (inline safe-lifo-cur-queue safe-fifo-underlay))
-(declaim (inline queue-count queue-empty-p enqueue dequeue queue-peek queue-find queue-flush))
 
 ;;; safe unbound fifo queue
 
+(declaim (inline safe-fifo-push-queue safe-fifo-pop-queue safe-fifo-underlay))
 (defstruct (safe-fast-fifo (:conc-name safe-fifo-))
   (push-queue nil :type simple-vector)
   (pop-queue  nil :type simple-vector)
   (underlay nil :type list) ; underlay can be implemented with any fifo structure
   (lock (bt:make-lock "SAFE-FIFO-LOCK")))
 
+(declaim (inline safe-fifo-p))
 (defun safe-fifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (safe-fast-fifo-p queue))
 
+(declaim (inline make-safe-fifo))
 (defun make-safe-fifo (&key (init-length 1000)
                        &aux (queue (cl-speedy-queue-safe:make-queue init-length))
                          (underlay (%make-list-queue)))
@@ -26,6 +26,7 @@
                        :push-queue queue
                        :pop-queue queue))
 
+(declaim (inline queue-count))
 (defmethod queue-count ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
@@ -33,6 +34,7 @@
       (apply #'+ (mapcar #'cl-speedy-queue-safe:queue-count
                          (%list-queue-contents underlay))))))
 
+(declaim (inline queue-empty-p))
 (defmethod queue-empty-p ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (pop-queue push-queue lock) queue
@@ -40,6 +42,7 @@
       (and (eq pop-queue push-queue)
            (cl-speedy-queue-safe:queue-empty-p pop-queue)))))
 
+(declaim (inline enqueue))
 (defmethod enqueue (object (queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
@@ -60,6 +63,7 @@
                   retry-res)))
           res))))
 
+(declaim (inline queue-peek))
 (defmethod queue-peek ((queue safe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay lock) queue
@@ -77,6 +81,7 @@
                          (cl-speedy-queue-safe:queue-peek pop-queue))
                   (values (first res) (second res)))))))))
 
+(declaim (inline dequeue))
 (defmethod dequeue ((queue safe-fast-fifo) &optional keep-in-queue-p)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (ignore keep-in-queue-p))
@@ -97,6 +102,7 @@
                   retry-res)))
           res))))
 
+(declaim (inline queue-find))
 (defmethod queue-find (item (queue safe-fast-fifo) &key (key #'identity) (test #'eql))
   "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
@@ -105,6 +111,7 @@ So if `item' is nil, the returned value will be nil whatever."
     (some #'(lambda (sfifo) (cl-speedy-queue-safe:queue-find item sfifo :key key :test test))
           (%list-queue-contents (safe-fifo-underlay queue)))))
 
+(declaim (inline queue-flush))
 (defmethod queue-flush ((queue safe-fast-fifo))
   "Empty the `queue'"
   (with-slots (push-queue pop-queue underlay lock) queue
@@ -115,6 +122,7 @@ So if `item' is nil, the returned value will be nil whatever."
       (%list-queue-enqueue push-queue underlay)
       queue)))
 
+(declaim (inline queue-to-list))
 (defmethod queue-to-list ((queue safe-fast-fifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the same as enqueue order. (so that they will have the same dequeue order)"
@@ -123,6 +131,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
     (mapcan #'cl-speedy-queue-safe:queue-to-list
             (%list-queue-contents (safe-fifo-underlay queue)))))
 
+(declaim (inline list-to-queue))
 (defmethod list-to-queue (list (queue-type (eql :safe-fifo)))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -135,6 +144,183 @@ and the order of the returned list is the same as enqueue order. (so that they w
 
 
 ;;; ------- safe lifo unbound queue -------
+
+
+;; atomics:atomic-pop has bugs and may fall into infinite loops and have to use a lock
+#|
+(ql:quickload :atomics)
+(ql:quickload :bordeaux-threads)
+(defparameter *queue* nil)
+(defparameter *threads* nil)
+(defparameter *num* 1000)
+(bt:make-thread
+ (lambda()
+   (dotimes (i 1000)
+     (format t "~&Times: ~d~%" i)
+     (setf *queue* (list))
+     (setf *threads* nil)
+     (dotimes (time *num*)
+       (push (bt:make-thread #'(lambda ()
+                                 (atomics:atomic-push 1 *queue*))
+                             :name "push-thread")
+             *threads*))
+     (format t "~&thread created~%")
+     (setf *threads* (reverse *threads*))
+     (loop while *threads*
+           do (bt:join-thread (pop *threads*)))
+     (format t "~&thread joined~%")
+     (dotimes (time *num*) (atomics:atomic-pop *queue*))
+     (when *queue*
+       (format t "~&queue is not empty: ~d~%" *queue*))))
+ :name "atomic-main")
+|#
+
+;; -----
+#+sbcl
+(in-package "SB-EXT")
+#+sbcl
+(declaim (inline true))
+(defun true (arg)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (if arg T NIL))
+
+#+sbcl
+(defmacro atomic-pop-flow-detect (place &environment env)
+  "Like POP, but atomic. PLACE may be read multiple times before
+the operation completes -- the write does not occur until such time
+that no other thread modified PLACE between the read and the write.
+Works on all CASable places."
+  (multiple-value-bind (vars vals old new cas-form read-form)
+      (get-cas-expansion place env)
+    `(let* (,@(mapcar 'list vars vals)
+            (,old ,read-form))
+       (loop (let ((,new (cdr ,old)))
+               (when (eq ,old (setf ,old ,cas-form))
+                 (return (values (car (truly-the list ,old))
+                                 (true ,old)))))))))
+#+sbcl
+(in-package :cl-fast-queues)
+;; -----
+
+
+(declaim (inline true))
+(defun true (arg)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (if arg T NIL))
+
+(defmacro atomic-pop (place)
+  #+sbcl
+  `(sb-ext::atomic-pop-flow-detect ,place)
+  #-sbcl(declare (ignore place))
+  #-sbcl(error "not support"))
+
+(declaim (inline safe-fifo-underlay safe-lifo-lock))
+(defstruct (safe-fast-lifo (:conc-name safe-lifo-))
+  (underlay nil :type list)
+  #-sbcl(lock))
+
+(declaim (inline safe-lifo-p))
+(defun safe-lifo-p (queue)
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (safe-fast-lifo-p queue))
+
+(declaim (inline make-safe-lifo))
+(defun make-safe-lifo ()
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  #+sbcl(make-safe-fast-lifo :underlay (list))
+  #-sbcl(make-safe-fast-lifo :underlay (list)
+                             :lock (bt:make-lock)))
+
+(declaim (inline queue-count))
+(defmethod queue-count ((queue safe-fast-lifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  #+sbcl(length (safe-lifo-underlay queue))
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (length underlay))))
+
+(declaim (inline queue-empty-p))
+(defmethod queue-empty-p ((queue safe-fast-lifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  #+sbcl(null (safe-lifo-underlay queue))
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (null underlay))))
+
+(declaim (inline enqueue))
+(defmethod enqueue (item (queue safe-fast-lifo))
+  #+sbcl(atomics:atomic-push item (safe-lifo-underlay queue))
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (push item underlay)))
+  item)
+
+(declaim (inline queue-peek))
+(defmethod queue-peek ((queue safe-fast-lifo))
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  #+sbcl(let ((underlay (safe-lifo-underlay queue)))
+    (if underlay
+        (values (car (safe-lifo-underlay queue)) t)
+        (values nil nil)))
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (if underlay
+                (values (car underlay) t)
+                (values nil nil)))))
+
+(declaim (inline dequeue))
+(defmethod dequeue ((queue safe-fast-lifo) &optional keep-in-queue-p)
+  (declare (ignore keep-in-queue-p))
+  #+sbcl(multiple-value-bind (item successful-p) (atomic-pop (safe-lifo-underlay queue))
+    (if (or item successful-p)
+        item
+        *underflow-flag*))
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (let ((not-empty-p (true underlay))
+                  (item (pop underlay)))
+              (if (or item not-empty-p)
+                  item
+                  *underflow-flag*)))))
+
+(declaim (inline queue-find))
+(defmethod queue-find (item (queue safe-fast-lifo) &key (key #'identity) (test #'eql))
+  "If `item' has been found in `queue', return the item that has been found, or else return nil.
+So if `item' is nil, the returned value will be nil whatever."
+  #+sbcl(find item (safe-lifo-underlay queue) :key key :test test)
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (find item underlay :key key :test test))))
+
+(declaim (inline queue-flush))
+(defmethod queue-flush ((queue safe-fast-lifo))
+  "Empty the `queue', do not use it when there some thread is doing dequeue/enqueue."
+  #+:sbcl(setf (slot-value queue 'underlay) (list))
+  #-sbcl(bt:with-lock-held ((safe-lifo-lock queue))
+          (setf (slot-value queue 'underlay) (list)))
+  queue)
+
+(declaim (inline queue-to-list))
+(defmethod queue-to-list ((queue safe-fast-lifo))
+  "Return a list of items those have been enqueued,
+and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  #+sbcl(copy-list (safe-lifo-underlay queue))
+  #-sbcl(with-slots (underlay lock) queue
+          (bt:with-lock-held (lock)
+            (copy-list underlay))))
+
+(declaim (inline list-to-queue))
+(defmethod list-to-queue (list (queue-type (eql :safe-lifo)))
+  "Make a queue, then enque the items in the list from left to right."
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (list list))
+  (let ((queue (make-safe-lifo)))
+    (setf (slot-value queue 'underlay) (copy-list list))
+    queue))
+
+
+#|
 ;;;
 ;;; Cannot not use a normal LIFO queue as the underlay,
 ;;; because a LIFO underlay will make the current subqueue be the same structure, this may cause
@@ -146,7 +332,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
 ;;; it never do the pop operation, and it only remove its secondary element when necessary,
 ;;; and thus the subqueue that is going to remove will never be the one that is going to be pushed into.
 ;;; Finally the problems above have been solved and all tests have passed.
-
+;;; Note, it's still failed because the speedy-lifo-safe failed.
 
 (defstruct (safe-fast-lifo (:conc-name safe-lifo-))
   (cur-queue nil :type simple-vector)
@@ -188,7 +374,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
            (cl-speedy-lifo-safe:queue-empty-p (car underlay))))))
 
 (defmethod enqueue (object (queue safe-fast-lifo)) ; enqueue should always be successful
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (cur-queue underlay lock) queue
     (let ((res (cl-speedy-lifo-safe:enqueue object cur-queue)))
       (if (eq res #.*overflow-flag*)
@@ -219,7 +405,7 @@ and the order of the returned list is the same as enqueue order. (so that they w
               (values (first res) (second res))))))))
 
 (defmethod dequeue ((queue safe-fast-lifo) &optional keep-in-queue-p)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (ignore keep-in-queue-p))
   (with-slots (underlay lock) queue
     (let* ((cur-queue (safe-lifo-cur-queue queue))
@@ -272,3 +458,4 @@ and the order of the returned list is the reverse of the enqueue order (so that 
     (dolist (item list)
       (enqueue item queue))
     queue))
+|#
