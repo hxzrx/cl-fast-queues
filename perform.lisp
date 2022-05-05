@@ -210,6 +210,30 @@
     (setf ts2 (local-time:now))
     (format t "~&Time cost: ~d.~%" (local-time:timestamp-difference ts2 ts1))))
 
+(dolist (t-num *threads-num*)
+  (format t "~&speedy-fifo-safe, threads: ~d, ~d times.~%" t-num *max-times*)
+  (sb-ext:gc :full t)
+  (let* ((num-each-thread (truncate (/ *max-times* t-num)))
+         (lst (make-list num-each-thread :initial-element 8))
+         (queue (cl-speedy-queue-safe:make-queue *max-times*))
+         (counter (list 0))
+         (ts1 (local-time:now))
+         (ts2 nil))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (cl-speedy-queue-safe:enqueue item queue))
+                          (sb-ext:atomic-incf (car counter)))))
+    (dotimes (th t-num)
+      (bt:make-thread #'(lambda ()
+                          (dolist (item lst)
+                            (cl-speedy-queue-safe:dequeue queue))
+                          (sb-ext:atomic-incf (car counter)))))
+    (loop while (/= (car counter) (* 2 t-num))
+          do (bt:thread-yield))
+    (setf ts2 (local-time:now))
+    (format t "~&Time cost: ~d.~%" (local-time:timestamp-difference ts2 ts1))))
+
 
 ;; simple-cqueue
 
