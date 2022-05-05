@@ -1,16 +1,14 @@
 (in-package :cl-fast-queues)
 
-(declaim (inline %singularp %remove-second))
-(declaim (inline unsafe-fifo-push-queue unsafe-fifo-pop-queue unsafe-fifo-underlay))
-(declaim (inline unsafe-lifo-cur-queue unsafe-lifo-underlay))
-(declaim (inline queue-count queue-empty-p enqueue dequeue queue-peek queue-find queue-flush))
 
+(declaim (inline %singularp))
 (defun %singularp (lst)
   "Test if `lst' has only one element."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list lst))
   (and lst (eq nil (cdr lst))))
 
+(declaim (inline %remove-second))
 (defun %remove-second (lst)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list lst))
@@ -19,15 +17,18 @@
 
 ;;; fifo unbound queue
 
+(declaim (inline unsafe-fifo-push-queue unsafe-fifo-pop-queue unsafe-fifo-underlay))
 (defstruct (unsafe-fast-fifo (:conc-name unsafe-fifo-))
   (push-queue nil :type simple-vector)
   (pop-queue  nil :type simple-vector)
   (underlay   nil :type list))
 
+(declaim (inline unsafe-fifo-p))
 (defun unsafe-fifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (unsafe-fast-fifo-p queue))
 
+(declaim (inline make-unsafe-fifo))
 (defun make-unsafe-fifo (&key (init-length 1000)
                          &aux (queue (cl-speedy-queue:make-queue init-length))
                            (underlay (%make-list-queue)))
@@ -37,15 +38,18 @@
                          :push-queue queue
                          :pop-queue queue))
 
+(declaim (inline queue-count))
 (defmethod queue-count ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (the fixnum (apply #'+ (mapcar #'cl-speedy-queue:queue-count
                                  (%list-queue-contents (unsafe-fifo-underlay queue))))))
 
+(declaim (inline queue-empty-p))
 (defmethod queue-empty-p ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-queue:queue-empty-p (unsafe-fifo-pop-queue queue)))
 
+(declaim (inline enqueue))
 (defmethod enqueue (object (queue unsafe-fast-fifo)) ; faster
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (push-queue underlay) queue
@@ -60,10 +64,12 @@
             (cl-speedy-queue:enqueue object push-queue))
           res))))
 
+(declaim (inline queue-peek))
 (defmethod queue-peek ((queue unsafe-fast-fifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (cl-speedy-queue:queue-peek (unsafe-fifo-pop-queue queue)))
 
+(declaim (inline dequeue))
 (defmethod dequeue ((queue unsafe-fast-fifo) &optional (keep-in-queue-p t)) ; faster
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (pop-queue underlay) queue
@@ -75,6 +81,7 @@
                  (cl-speedy-queue:dequeue pop-queue keep-in-queue-p))
           res))))
 
+(declaim (inline queue-find))
 (defmethod queue-find (item (queue unsafe-fast-fifo) &key (key #'identity) (test #'eql))
   "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
@@ -82,6 +89,7 @@ So if `item' is nil, the returned value will be nil whatever."
   (some #'(lambda (ufifo) (cl-speedy-queue:queue-find item ufifo :key key :test test))
         (%list-queue-contents (unsafe-fifo-underlay queue))))
 
+(declaim (inline queue-flush))
 (defmethod queue-flush ((queue unsafe-fast-fifo))
   "Empty the `queue'"
   (with-slots (push-queue pop-queue underlay) queue
@@ -91,6 +99,7 @@ So if `item' is nil, the returned value will be nil whatever."
     (%list-queue-enqueue push-queue underlay)
     queue))
 
+(declaim (inline queue-to-list))
 (defmethod queue-to-list ((queue unsafe-fast-fifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the same as queue order. (so that they will have the same dequeue order)"
@@ -98,6 +107,7 @@ and the order of the returned list is the same as queue order. (so that they wil
   (mapcan #'cl-speedy-queue:queue-to-list
           (%list-queue-contents (unsafe-fifo-underlay queue))))
 
+(declaim (inline list-to-queue))
 (defmethod list-to-queue (list (queue-type (eql :unsafe-fifo)))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -110,14 +120,17 @@ and the order of the returned list is the same as queue order. (so that they wil
 
 ;;; lifo unbound queue
 
+(declaim (inline unsafe-lifo-cur-queue unsafe-lifo-underlay))
 (defstruct (unsafe-fast-lifo (:conc-name unsafe-lifo-))
   (cur-queue nil :type simple-vector)
   (underlay  nil :type list))
 
+(declaim (inline unsafe-lifo-p))
 (defun unsafe-lifo-p (queue)
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (unsafe-fast-lifo-p queue))
 
+(declaim (inline make-unsafe-lifo))
 (defun make-unsafe-lifo (&key (init-length 1000)
                          &aux (queue (cl-speedy-lifo:make-queue init-length)))
   (declare (fixnum init-length))
@@ -125,17 +138,20 @@ and the order of the returned list is the same as queue order. (so that they wil
   (make-unsafe-fast-lifo :underlay (list queue)
                          :cur-queue queue))
 
+(declaim (inline queue-count))
 (defmethod queue-count ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (apply #'+ (mapcar #'cl-speedy-lifo:queue-count
                      (unsafe-lifo-underlay queue))))
 
+(declaim (inline queue-empty-p))
 (defmethod queue-empty-p ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay) queue
     (and (%singularp underlay)
          (cl-speedy-lifo:queue-empty-p (car underlay)))))
 
+(declaim (inline enqueue))
 (defmethod enqueue (object (queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (cur-queue underlay) queue
@@ -151,6 +167,7 @@ and the order of the returned list is the same as queue order. (so that they wil
             ret)
           res))))
 
+(declaim (inline queue-peek))
 (defmethod queue-peek ((queue unsafe-fast-lifo))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay) queue
@@ -162,6 +179,7 @@ and the order of the returned list is the same as queue order. (so that they wil
             (cl-speedy-lifo:queue-peek 2nd)
             (values (first res) (second res)))))))
 
+(declaim (inline dequeue))
 (defmethod dequeue ((queue unsafe-fast-lifo) &optional (keep-in-queue-p t))
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (with-slots (underlay) queue
@@ -176,6 +194,7 @@ and the order of the returned list is the same as queue order. (so that they wil
             #.*underflow-flag*)
           res))))
 
+(declaim (inline queue-find))
 (defmethod queue-find (item (queue unsafe-fast-lifo) &key (key #'identity) (test #'eql))
   "If `item' has been found in `queue', return the item that has been found, or else return nil.
 So if `item' is nil, the returned value will be nil whatever."
@@ -183,6 +202,7 @@ So if `item' is nil, the returned value will be nil whatever."
   (some #'(lambda (ulifo) (cl-speedy-lifo:queue-find item ulifo :key key :test test))
         (unsafe-lifo-underlay queue)))
 
+(declaim (inline queue-flush))
 (defmethod queue-flush ((queue unsafe-fast-lifo))
   "Empty the `queue'"
   (declare (optimize (speed 3) (safety 0) (debug 0)))
@@ -191,6 +211,7 @@ So if `item' is nil, the returned value will be nil whatever."
     (setf (slot-value queue 'underlay) (list cur-queue))
     queue))
 
+(declaim (inline queue-to-list))
 (defmethod queue-to-list ((queue unsafe-fast-lifo))
   "Return a list of items those have been enqueued,
 and the order of the returned list is the reverse of the enqueue order (so that they will have the same dequeue order)."
@@ -198,6 +219,7 @@ and the order of the returned list is the reverse of the enqueue order (so that 
   (mapcan #'cl-speedy-lifo:queue-to-list
           (unsafe-lifo-underlay queue)))
 
+(declaim (inline list-to-queue))
 (defmethod list-to-queue (list (queue-type (eql :unsafe-lifo)))
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
