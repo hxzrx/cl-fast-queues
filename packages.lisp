@@ -2,6 +2,10 @@
   (:use :cl)
   (:nicknames :fastq)
   (:export
+   :unsafe-fast-fifo
+   :unsafe-fast-lifo
+   :safe-fast-fifo
+   :safe-fast-lifo
    :make-unsafe-fifo
    :make-unsafe-lifo
    :make-safe-fifo
