@@ -121,6 +121,9 @@
            (<= length #.*max-queue-length*)
            (if fullp (= head tail) t)))))
 
+(deftype safe-speedy-queue ()
+  `(and array (satisfies queuep)))
+
 (define-speedy-function %queue-out (queue)
   "QUEUE's exit pointer"
   (the fixnum (ash (logand (the fixnum (svref queue 0))

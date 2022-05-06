@@ -31,6 +31,7 @@
 (defpackage :cl-speedy-queue
   (:use :cl)
   (:export
+   :speedy-queue
    :make-queue
    :queue-to-list
    :list-to-queue
@@ -50,6 +51,7 @@
   (:use :cl)
   (:nicknames :safe-queue)
   (:export
+   :safe-speedy-queue
    :make-queue
    :queue-to-list
    :list-to-queue

@@ -76,6 +76,9 @@
            (< 1 head length)
            (< 1 tail length)))))
 
+(deftype speedy-queue ()
+  `(and array (satisfies queuep)))
+
 (define-speedy-function %queue-out (queue)
   "QUEUE's exit pointer"
   (the fixnum (svref queue 0)))
