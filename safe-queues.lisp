@@ -136,11 +136,13 @@ and the order of the returned list is the same as enqueue order. (so that they w
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
-  (let* ((len (length list))
-         (queue (make-safe-fifo :init-length len)))
-    (dolist (item list)
-      (enqueue item queue))
-    queue))
+  (if list
+      (let* ((len (length list))
+             (queue (make-safe-fifo :init-length len)))
+        (dolist (item list)
+          (enqueue item queue))
+        queue)
+      (make-safe-fifo)))
 
 
 ;;; ------- safe lifo unbound queue -------

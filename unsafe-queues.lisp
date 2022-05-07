@@ -112,11 +112,13 @@ and the order of the returned list is the same as queue order. (so that they wil
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
-  (let* ((len (length list))
-         (queue (make-unsafe-fifo :init-length len)))
-    (dolist (item list)
-      (enqueue item queue))
-    queue))
+  (if list
+      (let* ((len (length list))
+             (queue (make-unsafe-fifo :init-length len)))
+        (dolist (item list)
+          (enqueue item queue))
+        queue)
+      (make-unsafe-fifo)))
 
 ;;; lifo unbound queue
 
@@ -224,8 +226,10 @@ and the order of the returned list is the reverse of the enqueue order (so that 
   "Make a queue, then enque the items in the list from left to right."
   (declare (optimize (speed 3) (safety 0) (debug 0)))
   (declare (list list))
-  (let* ((len (length list))
-         (queue (make-unsafe-lifo :init-length len)))
-    (dolist (item list)
-      (enqueue item queue))
-    queue))
+  (if list
+      (let* ((len (length list))
+             (queue (make-unsafe-lifo :init-length len)))
+        (dolist (item list)
+          (enqueue item queue))
+        queue)
+      (make-unsafe-lifo)))
