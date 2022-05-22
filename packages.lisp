@@ -49,7 +49,6 @@
 
 (defpackage #:cl-speedy-queue-safe
   (:use :cl)
-  (:nicknames :safe-queue)
   (:export
    :safe-speedy-queue
    :make-queue
