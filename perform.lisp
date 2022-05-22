@@ -70,12 +70,11 @@
   (format t "~&list queue: 10^~d times.~%" (log num 10))
   #+sbcl(sb-ext:gc :full t)
   #+ccl(ccl:gc)
-  (time (let ((queue (cl-fast-queues::%make-list-queue num)))
+  (time (let ((queue (cl-fast-queues::%make-list-queue)))
           (dotimes (i num)
             (cl-fast-queues::%list-queue-enqueue i queue))
           (dotimes (i num)
             (cl-fast-queues::%list-queue-dequeue queue)))))
-
 
 ;;; ------- LIFO, Single thread, init-length 1000 -------
 
