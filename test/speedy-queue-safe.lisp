@@ -185,7 +185,7 @@
 (define-test speedy-queue-safe-dequeue-enqueue-mixed-threads-2 :parent speedy-queue-safe
   #+sbcl (sb-ext:gc :full t)
   #+ccl (ccl:gc)
-  (dotimes (i 100) ;*loop-test-times*)
+  (dotimes (i 10) ;*loop-test-times*)
     (format t "~%~%safe speedy queue test, times: ~d" i)
     (when (mod (1+ i) 1000) #+sbcl (sb-ext:gc :full t) #+ccl (ccl:gc))
     (dolist (thread-num *thread-num-list*)
